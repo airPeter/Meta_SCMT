@@ -13,13 +13,12 @@
         the problem size is propotional to total_num_waveguides^3 * modes_within_each_waveguide.'''
 import numpy as np
 import os
-from .modes1D import gen_modes1D
+from .modes1D import Gen_modes1D
+from .fitting_neffs import Fitting_neffs
 #from modes2D import gen_modes2D
-from .utils import h2index
-import matplotlib.pyplot as plt
 
 class GP():
-    def __init__(self,dim, modes, N, period, res, wh, prop_dis, lam, n_sub, n_wg, theta, h_min, h_max, dh, path = 'sim_data/'):
+    def __init__(self,dim, modes, N, period, res, wh, prop_dis, lam, n_sub, n_wg, theta, h_min, h_max, dh, path = 'sim_cache/'):
         self.dim = dim #dim = 1 or 2.
         self.modes = modes #number of modes with in a single waveguide. modes <= 2 is usually good enough.
         self.C_EPSILON = 3 * 8.85 * 10**-4 # C * EPSILON
@@ -47,49 +46,11 @@ class GP():
 class Sim():
     def __init__(self,**keyword_args) -> None:
         self.GP = GP(**keyword_args)
-        self.modes_lib = None
+        
+        if self.GP.dim == 1:
+            self.gen_modes = Gen_modes1D(self.GP)
+            self.fitting_neffs = Fitting_neffs(self.GP.modes, self.gen_modes, self.GP.dh, self.GP.path)
+            
 
-    def gen_modes(self,load = True):
-        '''
-            generate a dict that for each unique h, and mode, the neff, Ey, Hx are included.
-        '''
-        if self.modes_lib:
-            print("modes already generated.")
-            return None
-        if load:
-            load_path = os.path.join(self.path, "modes_lib.npy")
-            if not os.path.exists(load_path):
-                raise Exception('gen modes first!')
-            modes_lib = np.load(load_path, allow_pickle= True)
-            self.modes_lib = modes_lib.item()
-        else:
-            if self.GP.dim == 1:
-                self.modes_lib = gen_modes1D(self.GP)
-            # elif self.GP.dim == 2:
-            #     self.modes_lib = gen_modes2D(self.GP)
-        return None
-
-    def vis_fields1D(self, H):
-        '''
-            H an list of wg width you want to plot.
-        '''
-        fig, axs = plt.subplots(1, 2, figsize = (12, 6))
-        half_x = (self.GP.Knnc + 1)*self.GP.period
-        Xc = np.linspace(-half_x, half_x, 2*(self.GP.Knnc + 1) * self.GP.res)
-        for h in H:
-            index = h2index(h, self.GP.dh)
-            for n_mode in range(self.GP.modes):
-                Ey = self.modes_lib[index][n_mode]['Ey']
-                neff = self.modes_lib[index][n_mode]['neff']
-                L = "h:" + str(round(h,3)) + "neff" + str(neff) + "mode:" + str(n_mode) + "Ey"
-                axs[0].plot(Xc, Ey, label = L)
-                axs[0].set_xlabel("[um]")
-                Hx = self.modes_lib[index][n_mode]['Hx']
-                L = "h:" + str(round(h,3)) + "neff" + str(neff)  + "mode:" + str(n_mode) + "Hx"
-                axs[1].plot(Xc, Hx, label = L)
-                axs[1].set_xlabel("[um]")
-        axs[0].legend()
-        axs[1].legend()
-        plt.show()
-        return None
+        
             
