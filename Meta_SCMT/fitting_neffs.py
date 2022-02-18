@@ -1,10 +1,8 @@
-from importlib.resources import path
-from statistics import mode
 import numpy as np
 import matplotlib.pyplot as plt
 import torch
 from sklearn.preprocessing import PolynomialFeatures
-from .utils import gen_decay_rate
+from .utils import gen_decay_rate, Model, train
 
 class LinearModel(torch.nn.Module):
     def __init__(self, modes, order):
@@ -13,18 +11,6 @@ class LinearModel(torch.nn.Module):
         self.fc = torch.nn.Linear(self.order, modes)
     def forward(self, poly_h):
         return self.fc(poly_h)
-
-class Model(torch.nn.Module):
-    def __init__(self, modes, layers = 2, nodes = 64):
-        super(Model, self).__init__()
-        module_list = [torch.nn.Linear(1, nodes), torch.nn.ReLU()]
-        for _ in range(layers):
-            module_list.append(torch.nn.Linear(nodes, nodes))
-            module_list.append(torch.nn.ReLU())
-        module_list.append(torch.nn.Linear(nodes, modes))
-        self.fc = torch.nn.Sequential(*module_list)
-    def forward(self, x):
-        return self.fc(x)
            
 class Fitting_neffs():
     def __init__(self, modes, gen_modes, dh, path) -> None:
@@ -35,45 +21,16 @@ class Fitting_neffs():
         self.path = path
         
     def fit(self, layers = 2, steps = 10000, lr = 0.001, vis = True):
-        if torch.cuda.is_available():
-            device = 'cuda'
-        else:
-            device = 'cpu'
-        log_steps = int(steps // 10)
-        self.model = Model(self.modes, layers)
-        self.model = self.model.to(device)
+        self.model = Model(in_size = 1, out_size = self.modes, layers = layers)
         modes_lib = self.gen_modes.modes_lib
         if modes_lib == None:
             raise Exception("gen modes first!")
         widths, neffs= gen_fitting_data(self.modes, modes_lib, self.dh)
-        X = torch.tensor(widths, dtype = torch.float, device= device)
-        Y = torch.tensor(neffs, dtype = torch.float, device= device)
-        optimizer = torch.optim.Adam(self.model.parameters(), lr=lr)
-        decay_rate = gen_decay_rate(steps, log_steps)
-        my_lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=decay_rate)
-        mse = torch.nn.MSELoss(reduction = 'sum')
-        for step in range(steps):
-            Y_pred = self.model(X)
-            loss = mse(Y_pred, Y)
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-            if step % log_steps == 0:
-                if step != 0:
-                    my_lr_scheduler.step()
-                relative_error = torch.mean(torch.abs(Y_pred - Y)/torch.abs(Y)) * 100
-                relative_error = relative_error.cpu().detach().numpy()
-                print("relative_error:" + str(relative_error) + "%.")
-                if relative_error < 0.1:
-                    print("fitting error < 0.1%, accurate enough, stoped.")
-                    torch.save(self.model, self.path + "fitting_neffs_state_dict")
-                    print("model saved.")
-                    break
-        if relative_error > 0.1:
-            print("fitting error > 0.1%, increase total steps or number of layers in fullconnected network.")
+        pred_neffs = train(self.model, widths, neffs, steps, lr)
+        torch.save(self.model, self.path + "fitting_neffs_state_dict")
+        print("model saved.")
         if vis:
             plt.figure()
-            pred_neffs = Y_pred.cpu().detach().numpy()
             for mode in range(self.modes):
                 mode_neffs = neffs[:, mode]
                 pred_mode_neffs = pred_neffs[:, mode]

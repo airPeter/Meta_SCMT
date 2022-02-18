@@ -10,7 +10,7 @@
         the 2D waveguide (square rod) modes are claculated numerically using Tidy3d.
         the forward and backward are implemented using pytorch.
         the number of waveguide for one side is N, for 1D, number of waveguides in metasurface is N; for 2D, N^2.
-        the problem size is propotional to total_num_waveguides^3 * modes_within_each_waveguide.'''
+        the problem size is propotional to total_num_waveguides^3 * modes_within_each_waveguide^2.'''
 import numpy as np
 import os
 from .modes1D import Gen_modes1D
@@ -29,6 +29,7 @@ class GP():
         self.k_row = N # generate C_inv_sub by k rows at same time.
         self.period = period
         self.res = res #resolution within one period
+        self.dx = self.period/self.res
         self.wh = wh #waveguide height
         self.prop_dis = prop_dis #the propagate distance in free space.
         self.lam = lam

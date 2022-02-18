@@ -41,7 +41,6 @@ class Gen_modes1D():
                 h_shift = h/2
                 half_x = (GP.Knnc + 1)*GP.period
                 Xc = np.linspace(-half_x - h_shift, half_x - h_shift, 2*(GP.Knnc + 1) * GP.res)
-                delta_x = GP.period / GP.res
                 for n_mode in range(GP.modes):
                     modes_lib[h_index][n_mode] = {}
                     if n_mode < count_roots:
@@ -49,7 +48,7 @@ class Gen_modes1D():
                         modes_lib[h_index][n_mode]['neff'] = np.round(beta/GP.k, 3)
                         Ey = gen_Ey(Xc, beta, GP.k, h, GP.n0, GP.n_wg)
                         Hx = gen_Hx(Xc, beta, GP.k, h, GP.n0, GP.n_wg, GP.C_EPSILON)
-                        normalization = np.sqrt(- 2 * np.sum(Ey * Hx) * delta_x)
+                        normalization = np.sqrt(- 2 * np.sum(Ey * Hx) * GP.dx)
                         modes_lib[h_index][n_mode]['Ey'] = Ey / normalization
                         modes_lib[h_index][n_mode]['Hx'] = Hx / normalization
                     else:
