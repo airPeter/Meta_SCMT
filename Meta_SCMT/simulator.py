@@ -17,7 +17,8 @@ import warnings
 import time 
 from .modes1D import Gen_modes1D
 from .fitting_neffs import Fitting_neffs
-from .fitting_C_matrix_1D import fitting_C_matrix_1D
+from .fitting_C_matrix_1D import Fitting_C_matrix_1D
+from .fitting_E_field_1D import Fitting_E_field_1D
 #from modes2D import gen_modes2D
 
 class GP():
@@ -66,7 +67,7 @@ class Sim():
             self.gen_modes = Gen_modes1D(self.GP)
             #always pass the object instead of the data until you realy need it. So that the data is up to date.
             self.fitting_neffs = Fitting_neffs(self.GP.modes, self.gen_modes, self.GP.dh, self.GP.path)
-            self.fftting_C = fitting_C_matrix_1D(self.gen_modes, self.GP.modes, self.GP.res, self.GP.dh, self.GP.dx, self.GP.Knnc, self.GP.path)
-
+            self.fftting_C = Fitting_C_matrix_1D(self.gen_modes, self.GP.modes, self.GP.res, self.GP.dh, self.GP.dx, self.GP.Knnc, self.GP.path)
+            self.fftting_E = Fitting_E_field_1D(self.gen_modes, self.GP.modes, self.GP.res, self.GP.dh, self.GP.dx, self.GP.Knnc, self.GP.path)
         
             

@@ -78,11 +78,11 @@ def train(model, X, Y, epochs, lr, batch_size):
             #Y can be zeros. So we take sum() first. otherwise, you will divide zero.
             relative_error = np.mean(np.abs(Y_pred - Y).sum()/np.abs(Y).sum()) * 100
             print(f"total epoches:{epochs:5d} [curr:{epoch:5d} relative_error:{round(relative_error, 3):5f}%].")
-            if relative_error < 0.1:
+            if relative_error < 0.1: 
                 print("fitting error < 0.1%, accurate enough, stoped.")
                 break
     if relative_error > 0.1:
-        print("fitting error > 0.1%, increase total steps or number of layers in fullconnected network.")
+        print("fitting error > 0.1%, increase total steps or number of layers in fullconnected network.(note: < 1% is good enough, but < 0.1% is the safest.)")
     return Y_pred
 
 def train_epoch(dataloader, model, loss_fn, optimizer, device):

@@ -1,12 +1,11 @@
 import matplotlib.pyplot as plt
 import numpy as np
-from sympy import EX
 import torch
 from .utils import h2index, Model, train
 from tqdm import tqdm
 import os
 
-class fitting_C_matrix_1D():
+class Fitting_C_matrix_1D():
     def __init__(self, gen_modes, modes, res, dh, dx, Knnc, path) -> None:
         self.gen_modes = gen_modes
         self.res = res
