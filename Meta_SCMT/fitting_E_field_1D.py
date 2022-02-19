@@ -4,12 +4,12 @@ import torch
 from .utils import Model, train
 
 class Fitting_E_field_1D():
-    def __init__(self, gen_modes, modes, res, dh, dx, Knnc, path) -> None:
+    def __init__(self, gen_modes, modes, res, dh, dx, Knn, path) -> None:
         self.gen_modes = gen_modes
         self.res = res
         self.dx = dx
         self.dh = dh
-        self.Knnc = Knnc
+        self.Knn = Knn
         self.modes = modes
         self.model = None
         self.path = path

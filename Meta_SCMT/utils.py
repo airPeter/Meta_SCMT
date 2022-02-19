@@ -70,7 +70,7 @@ def train(model, X, Y, epochs, lr, batch_size):
     mse = torch.nn.MSELoss(reduction = 'sum')
     for epoch in range(epochs):
         train_epoch(dataloader_train, model, mse, optimizer, device)
-        if epoch % log_epochs == 0:
+        if epoch % log_epochs == 0 or (epoch == epochs - 1):
             if epoch != 0:
                 my_lr_scheduler.step()
             Y_pred = test(dataloader_test, model, device)

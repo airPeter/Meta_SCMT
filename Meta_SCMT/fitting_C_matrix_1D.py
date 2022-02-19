@@ -1,3 +1,7 @@
+'''
+    fit a Fully connect met, that take (hi, hj, dis/self.Knn) as input, output Cij for each channels. 
+    number of channel equals to modes**2.
+'''
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
@@ -6,18 +10,18 @@ from tqdm import tqdm
 import os
 
 class Fitting_C_matrix_1D():
-    def __init__(self, gen_modes, modes, res, dh, dx, Knnc, path) -> None:
+    def __init__(self, gen_modes, modes, res, dh, dx, Knn, path) -> None:
         self.gen_modes = gen_modes
         self.res = res
         self.dx = dx
         self.dh = dh
-        self.Knnc = Knnc
+        self.Knn = Knn
         self.modes = modes
         self.channels = self.modes**2
         self.model = None
         self.path = path
         
-    def fit(self, layers = 6, steps = 500, lr = 0.001, vis = True, load = True):
+    def fit(self, layers = 6, steps = 1000, lr = 0.001, vis = True, load = True):
         X, Y = self.gen_fitting_data(load)
         self.model = Model(3, self.channels, layers= layers, nodes = 64)
         batch_size = 512
@@ -25,14 +29,14 @@ class Fitting_C_matrix_1D():
         torch.save(self.model, self.path + "fitting_C_state_dict")
         print("model saved.")
         if vis:
-            Y_pred = Y_pred.reshape(-1, self.Knnc * 2 + 1, self.channels)
-            Y = Y.reshape(-1, self.Knnc * 2 + 1, self.channels)
-            for dis in range(-self.Knnc, self.Knnc + 1):
+            Y_pred = Y_pred.reshape(-1, self.Knn * 2 + 1, self.channels)
+            Y = Y.reshape(-1, self.Knn * 2 + 1, self.channels)
+            for dis in range(-self.Knn, self.Knn + 1):
                 plt.figure()
                 for ch in range(self.channels):
-                    dis_index = dis + self.Knnc
-                    plt.plot( Y_pred[:, dis_index, ch], label = "ch:" + str(ch))
-                    plt.plot(Y[:, dis_index, ch], linestyle = '--', label = "ch:" + str(ch))
+                    dis_index = dis + self.Knn
+                    plt.plot( Y[:, dis_index, ch], label = "ch:" + str(ch))
+                    plt.plot(Y_pred[:, dis_index, ch], linestyle = '--', label = "ch:" + str(ch))
                     plt.legend()
                 plt.xlabel("vary widths" + "dis:" + str(dis))
                 plt.ylabel("Cij")
@@ -62,8 +66,8 @@ class Fitting_C_matrix_1D():
             C_input = []
             for hi in tqdm(widths):
                 for hj in widths:
-                    for dis in range(-self.Knnc, self.Knnc + 1):
-                        dis_norm = dis / self.Knnc
+                    for dis in range(-self.Knn, self.Knn + 1):
+                        dis_norm = dis / self.Knn
                         C_input.append([hi,hj,dis_norm])
                         C_map_modes = []
                         for mi in range(self.modes):
@@ -84,7 +88,7 @@ class Fitting_C_matrix_1D():
             i, j is the index of waveguides.
             h: waveguide width
             m: mode
-            dis = i - j: -Knnc, -Knnc - 1, ..., 0, 1, ... Knnc
+            dis = i - j: -Knn, -Knn - 1, ..., 0, 1, ... Knn
         '''
         dis = dis * self.res
         hi_index = h2index(hi, self.dh)
@@ -99,6 +103,4 @@ class Fitting_C_matrix_1D():
             Ey = np.pad(Ey, (dis, 0), 'constant', constant_values = (0, 0))
             Hx = np.pad(Hx, (0, dis), 'constant', constant_values = (0, 0))
         c_out = - 2 * np.sum(Ey * Hx) * self.dx
-        if dis == 0:
-            c_out = 1
         return c_out

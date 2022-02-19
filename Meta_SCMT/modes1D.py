@@ -8,6 +8,19 @@ class Gen_modes1D():
     def __init__(self, GP):
         self.GP = GP
         self.modes_lib = None
+    def count_modes(self,):
+        if self.modes_lib == None:
+            raise Exception("gen modes first!")
+        cnts = np.zeros((self.GP.modes,))
+        for key in self.modes_lib.keys():
+            for m in range(self.GP.modes):
+                neff = self.modes_lib[key][m]['neff']
+                if neff > self.GP.n0:
+                    cnts[m] += 1
+        print("total keys: ", len(self.modes_lib.keys()))
+        print("number of non zero modes: ", cnts)
+        return None
+    
     def gen(self,load = False):
         '''
             generate a dict that for each unique h, and mode, the neff, Ey, Hx are included.
@@ -38,8 +51,8 @@ class Gen_modes1D():
                 #define the span of field
                 #set the calculated field with the middle of the waveguide as center
                 h_shift = h/2
-                half_x = (GP.Knnc + 1)*GP.period
-                Xc = np.linspace(-half_x - h_shift, half_x - h_shift, 2*(GP.Knnc + 1) * GP.res)
+                half_x = (GP.Knn + 1)*GP.period
+                Xc = np.linspace(-half_x - h_shift, half_x - h_shift, 2*(GP.Knn + 1) * GP.res)
                 for n_mode in range(GP.modes):
                     modes_lib[h_index][n_mode] = {}
                     if n_mode < count_roots:
@@ -66,8 +79,8 @@ class Gen_modes1D():
         if self.modes_lib == None:
             raise Exception("gen modes first!")
         fig, axs = plt.subplots(1, 2, figsize = (12, 6))
-        half_x = (self.GP.Knnc + 1)*self.GP.period
-        Xc = np.linspace(-half_x, half_x, 2*(self.GP.Knnc + 1) * self.GP.res)
+        half_x = (self.GP.Knn + 1)*self.GP.period
+        Xc = np.linspace(-half_x, half_x, 2*(self.GP.Knn + 1) * self.GP.res)
         for h in H:
             index = h2index(h, self.GP.dh)
             for n_mode in range(self.GP.modes):
