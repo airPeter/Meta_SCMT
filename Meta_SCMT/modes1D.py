@@ -3,7 +3,7 @@ from scipy.optimize import fsolve
 from .utils import h2index
 import matplotlib.pyplot as plt
 import os
-import warnings
+
 class Gen_modes1D():
     def __init__(self, GP):
         self.GP = GP
@@ -19,7 +19,6 @@ class Gen_modes1D():
             modes_lib = np.load(load_path, allow_pickle= True)
             modes_lib = modes_lib.item()
             print("modes lib load sucessed.")
-            warnings.warn('You may change the physical setup without regenerate the modes!')
             #consistency check
             total_hs = (self.GP.h_max - self.GP.h_min + self.GP.dh)//self.GP.dh + 1
             load_total_hs = len(modes_lib.keys())

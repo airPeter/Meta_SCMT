@@ -1,5 +1,7 @@
+from cv2 import sampsonDistance
 import numpy as np
 import torch
+from torch.utils.data import DataLoader,Dataset
 
 def h2index(h, dh):
     if isinstance(h, np.ndarray):
@@ -26,35 +28,82 @@ class Model(torch.nn.Module):
     def forward(self, x):
         return self.fc(x)
 
-def train(model, X, Y, steps, lr):
+class SimpleDataset(Dataset):
+    def __init__(self,X, Y, transform = None):
+        self.X = X 
+        self.Y = Y
+        self.transform = transform
+        
+    def __getitem__(self,index): 
+        sample = {'X':self.X[index], 'Y': self.Y[index]}
+        if self.transform:
+            sample = self.transform(sample)
+        return sample
+    
+    def __len__(self):
+        return self.X.shape[0]
+
+class ToTensor(object):
+    """Convert ndarrays in sample to Tensors."""
+    def __call__(self, sample):
+        X, Y = sample['X'], sample['Y']
+        return {'X': torch.tensor(X, dtype = torch.float),
+                'Y': torch.tensor(Y, dtype = torch.float)}
+        
+def train(model, X, Y, epochs, lr, batch_size):
     if torch.cuda.is_available():
         device = 'cuda'
     else:
         device = 'cpu'
-    log_steps = int(steps // 10)
+    log_epochs = int(epochs // 10)
     model = model.to(device)
-    X = torch.tensor(X, dtype = torch.float, device= device)
-    Y = torch.tensor(Y, dtype = torch.float, device= device)
+    dataset_train = SimpleDataset(X, Y, ToTensor())
+    dataloader_train = DataLoader(dataset_train,
+                            shuffle=True,
+                            batch_size= batch_size)
+    dataloader_test = DataLoader(dataset_train,
+                            shuffle=False,
+                            batch_size= batch_size)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-    decay_rate = gen_decay_rate(steps, log_steps)
+    decay_rate = gen_decay_rate(epochs, log_epochs)
     my_lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=decay_rate)
     mse = torch.nn.MSELoss(reduction = 'sum')
-    for step in range(steps):
-        Y_pred = model(X)
-        loss = mse(Y_pred, Y)
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-        if step % log_steps == 0:
-            if step != 0:
+    for epoch in range(epochs):
+        train_epoch(dataloader_train, model, mse, optimizer, device)
+        if epoch % log_epochs == 0:
+            if epoch != 0:
                 my_lr_scheduler.step()
-            relative_error = torch.mean(torch.abs(Y_pred - Y)/torch.abs(Y)) * 100
-            relative_error = relative_error.cpu().detach().numpy()
-            print("relative_error:" + str(relative_error) + "%.")
+            Y_pred = test(dataloader_test, model, device)
+            Y_pred = np.array(Y_pred)
+            #Y can be zeros. So we take sum() first. otherwise, you will divide zero.
+            relative_error = np.mean(np.abs(Y_pred - Y).sum()/np.abs(Y).sum()) * 100
+            print(f"total epoches:{epochs:5d} [curr:{epoch:5d} relative_error:{round(relative_error, 3):5f}%].")
             if relative_error < 0.1:
                 print("fitting error < 0.1%, accurate enough, stoped.")
                 break
     if relative_error > 0.1:
         print("fitting error > 0.1%, increase total steps or number of layers in fullconnected network.")
-    Y_pred = Y_pred.cpu().detach().numpy()
+    return Y_pred
+
+def train_epoch(dataloader, model, loss_fn, optimizer, device):
+    model.train()
+    for _, samples in enumerate(dataloader):
+        X, Y = samples['X'].to(device), samples['Y'].to(device)
+        # Compute prediction error
+        Y_pred = model(X)
+        loss = loss_fn(Y_pred, Y)
+        # Backpropagation
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+    return None
+
+def test(dataloader, model, device):
+    model.eval()
+    Y_pred = []
+    with torch.no_grad():
+        for samples in dataloader:
+            X, _ = samples['X'].to(device), samples['Y'].to(device)
+            pred = model(X)
+            Y_pred = Y_pred + pred.cpu().tolist()
     return Y_pred

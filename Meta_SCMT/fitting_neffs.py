@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from pyrsistent import b
 import torch
 from sklearn.preprocessing import PolynomialFeatures
 from .utils import gen_decay_rate, Model, train
@@ -26,7 +27,8 @@ class Fitting_neffs():
         if modes_lib == None:
             raise Exception("gen modes first!")
         widths, neffs= gen_fitting_data(self.modes, modes_lib, self.dh)
-        pred_neffs = train(self.model, widths, neffs, steps, lr)
+        batch_size = widths.size
+        pred_neffs = train(self.model, widths, neffs, steps, lr, batch_size)
         torch.save(self.model, self.path + "fitting_neffs_state_dict")
         print("model saved.")
         if vis:

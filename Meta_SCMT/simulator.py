@@ -13,8 +13,11 @@
         the problem size is propotional to total_num_waveguides^3 * modes_within_each_waveguide^2.'''
 import numpy as np
 import os
+import warnings
+import time 
 from .modes1D import Gen_modes1D
 from .fitting_neffs import Fitting_neffs
+from .fitting_C_matrix_1D import fitting_C_matrix_1D
 #from modes2D import gen_modes2D
 
 class GP():
@@ -44,14 +47,26 @@ class GP():
         self.path = path #the inter state store path            
         if not os.path.exists(path):
             os.mkdir(path)
+    def __eq__(self, other) : 
+        return self.__dict__ == other.__dict__
+    
 class Sim():
     def __init__(self,**keyword_args) -> None:
         self.GP = GP(**keyword_args)
-        
+        gp_path = self.GP.path + "GP.npy"
+        if not os.path.exists(gp_path):
+            np.save(gp_path, self.GP, allow_pickle= True)
+        else:
+            saved_GP = np.load(gp_path, allow_pickle= True)
+            saved_GP = saved_GP.item()
+            if not self.GP == saved_GP:
+                warnings.warn('Your global parameters have changed. be careful loading any cached data, it may be in consist!')
+                time.sleep(3)
         if self.GP.dim == 1:
             self.gen_modes = Gen_modes1D(self.GP)
+            #always pass the object instead of the data until you realy need it. So that the data is up to date.
             self.fitting_neffs = Fitting_neffs(self.GP.modes, self.gen_modes, self.GP.dh, self.GP.path)
-            
+            self.fftting_C = fitting_C_matrix_1D(self.gen_modes, self.GP.modes, self.GP.res, self.GP.dh, self.GP.dx, self.GP.Knnc, self.GP.path)
 
         
             
