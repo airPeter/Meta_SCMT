@@ -10,6 +10,8 @@ import warnings
 class Fullwave_1D():
     def __init__(self, GP) -> None:
         self.GP =GP
+        self.sim = None
+        
     def init_sim(self, prop_dis, N, hs, res = None):
         warnings.warn("Fullwave is expensive and slow. Only do fullwave on small devices. And low resolution can be inaccurate.")
         if res == None:
@@ -91,9 +93,9 @@ class Fullwave_1D():
         # Show the output of the log file
         with open(data_path + self.task_name + "/tidy3d.log") as f:
             print(f.read())
-        sim = td.Simulation.import_json(data_path + self.task_name + "/simulation.json")
-        sim.load_results(data_path + self.task_name + '/monitor_data.hdf5')
-        self.sim = sim
+        if self.sim == None:
+            self.sim = td.Simulation.import_json(data_path + self.task_name + "/simulation.json")
+        self.sim.load_results(data_path + self.task_name + '/monitor_data.hdf5')
         return None
     
     def vis_monitor(self,path = None):
