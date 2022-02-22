@@ -5,12 +5,12 @@ from .utils import Model
 from .sputil_1D import gen_coo_sparse, gen_dis_CK_input, gen_input_neff
 from scipy import special
 
-class metalayer(torch.nn.Module):
+class Metalayer(torch.nn.Module):
     def __init__(self, GP, COUPLING, N, ln, lc, lk, le):
         '''
 
         '''
-        super(metalayer, self).__init__()
+        super(Metalayer, self).__init__()
         self.COUPLING = COUPLING
         self.h_paras = torch.nn.Parameter(torch.empty((N,), dtype = torch.float))
         self.hs = None
@@ -34,13 +34,13 @@ class metalayer(torch.nn.Module):
         '''
         size of E0: (N + 2 * (Knnc + 1)) * period_resolution
         '''
-        self.hs = self.sig(self.h_paras) * (self.h_max - self.h_min - self.dh) + self.h_min
+        self.hs = self.sig(self.h_paras) * (self.h_max - self.h_min) + self.h_min
         self.neffs = self.neffnn(self.hs.view(-1, 1))
         with torch.set_grad_enabled(False):
             Eys, U0 = self.genu0(self.hs, E0)
         if not self.COUPLING:
-            P = torch.exp(self.neffs * self.k * self.wh * 1j)
-            Uz = P * U0 #shape [N, modes]
+            P = torch.exp(self.neffs.view(-1,) * self.k * self.wh * 1j)
+            Uz = P * U0 #shape [N*modes,]
         else:
             with torch.set_grad_enabled(False):
                 neff_input = self.gen_neff_input(self.hs)
@@ -52,8 +52,8 @@ class metalayer(torch.nn.Module):
             B = torch.diag(self.neffs.view(-1,) * self.k)
             Eig_M = C_inv @ (B @ C + K)
             A = Eig_M * self.wh * 1j
-        P = torch.matrix_exp(A) #waveguide propagator
-        Uz = P @ U0
+            P = torch.matrix_exp(A) #waveguide propagator
+            Uz = P @ U0
         with torch.set_grad_enabled(False):
             hs_no_grad = self.hs
             neffs_no_grad = self.neffs
@@ -63,27 +63,26 @@ class metalayer(torch.nn.Module):
     def reset(self, path):
         #nn.init_normal_(self.phase, 0, 0.02)
         torch.nn.init.constant_(self.h_paras, val = 0.0)
+        self.neffnn.reset(path)
         self.genc.reset(path)
         self.genk.reset(path)
         self.genu0.reset(path)
     
-# class Model(nn.Module):
-#     def __init__(self):
-#         super(Model, self).__init__()
-#         self.nnc_dis = gen_nnc_dis()
-#         self.nnk_dis = gen_nnk_dis()
-#         self.prop = GP.focal_length
-#         self.propagate_distance = propagate_distance
-#         self.matalayer1 = matalayer(N, self.propagate_distance, self.nnc_dis,self.nnk_dis, GP.k)
-#         self.freelayer1 = freespace_layer(GP.k, self.prop)
-#     def forward(self, E0):
-#         En = self.matalayer1(E0)
-#         Ef = self.freelayer1(En)
-#         If = torch.abs(Ef)**2
-#         #If = If/If.max()
-#         return If
-#     def reset(self):
-#         self.matalayer1.reset()
+class SCMT_Model(nn.Module):
+    def __init__(self, prop_dis, GP, COUPLING, N, layer_neff, layer_C, layer_K, layer_E):
+        super(SCMT_Model, self).__init__()
+
+        self.prop = prop_dis
+        self.matalayer1 = Metalayer(GP, COUPLING, N, layer_neff, layer_C, layer_K, layer_E)
+        self.freelayer1 = freespace_layer(GP.k, self.prop, N, GP.Knn, GP.res, GP.dx)
+    def forward(self, E0):
+        En = self.matalayer1(E0)
+        Ef = self.freelayer1(En)
+        If = torch.abs(Ef)**2
+        #If = If/If.max()
+        return If
+    def reset(self):
+        self.matalayer1.reset()
 
 class gen_neff(nn.Module):
     def __init__(self, modes, layers):
@@ -242,9 +241,9 @@ class gen_K(nn.Module):
         self.knn.load_state_dict(model_state)
         
 class freespace_layer(nn.Module):
-    def __init__(self, k, prop):
+    def __init__(self, k, prop, N, Knn, res, dx):
         super(freespace_layer, self).__init__()
-        G = torch.tensor(gen_G(k, prop))
+        G = torch.tensor(gen_G(k, prop, N, Knn, res, dx))
         self.register_buffer('G', G)
     def forward(self, En):
         Ef = self.G @ En

@@ -29,7 +29,7 @@ class Fitting_neffs():
         widths, neffs= gen_fitting_data(self.modes, modes_lib, self.dh)
         batch_size = widths.size
         pred_neffs = train(self.model, widths, neffs, steps, lr, batch_size)
-        torch.save(self.model, self.path + "fitting_neffs_state_dict")
+        torch.save(self.model.state_dict(), self.path + "fitting_neffs_state_dict")
         print("model saved.")
         if vis:
             plt.figure()
