@@ -21,6 +21,7 @@ from .fitting_C_matrix_1D import Fitting_C_matrix_1D
 from .fitting_E_field_1D import Fitting_E_field_1D
 from .fitting_K_matrix_1D import Fitting_K_matrix_1D
 from .SCMT_1D import SCMT_1D
+from .fullwave_1D import Fullwave_1D
 #from modes2D import gen_modes2D
 
 class GP():
@@ -70,4 +71,5 @@ class Sim():
                                                 self.GP.n_wg, self.GP.n0, self.GP.k, self.GP.C_EPSILON, self.GP.period)
                     
             self.scmt = SCMT_1D(self.GP)
+            self.fullwave = Fullwave_1D(self.GP)
             

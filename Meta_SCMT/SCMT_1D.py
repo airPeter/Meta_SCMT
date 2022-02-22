@@ -20,16 +20,13 @@ class SCMT_1D():
         self.k_row = None
         self.prop_dis = None
         
-    def init_model(self, N, NA = 0.6, COUPLING = True, layer_neff = 2, layer_C = 6, layer_K = 6, layer_E = 4, init_hs = None, far_field = False):
+    def init_model(self, N, prop_dis, COUPLING = True, layer_neff = 2, layer_C = 6, layer_K = 6, layer_E = 4, init_hs = None, far_field = False):
         '''
             the layers will be used when re building the fitted model. If you change any of this default values when you do the fitting.
             you should also change at here.
         '''
         self.N = N
-        self.NA = NA
-        #np.sqrt((1 - NA)**2 / NA**2) 
-        self.prop_dis = 0.25 * self.N * self.GP.period
-        print(f"free space propogate distance: {self.prop_dis:3f}")
+        self.prop_dis = prop_dis
         self.total_size = (self.N + 2 * self.GP.Knn + 1) * self.GP.res
         self.far_field = far_field
         # if not Ni:
@@ -57,7 +54,7 @@ class SCMT_1D():
         E_out = E_out.cpu().detach().numpy()
         return E_out
     
-    def optimize(self, notes, steps, lr = 0.01, theta = 0, NA = 0.9):
+    def optimize(self, notes, steps, lr = 0.01, theta = 0):
         if not self.far_field:
             raise Exception("Should initalize model with far_field=True")
         if self.COUPLING:
@@ -78,7 +75,10 @@ class SCMT_1D():
         E0 = np.exp(1j * self.GP.k * np.sin(theta) * X)
         E0 = torch.tensor(E0, dtype = torch.complex64)
         E0 = E0.to(self.device)
-        target_sigma = self.GP.lam / (2 * self.NA) / self.GP.dx
+        radius = self.N * self.GP.period/2
+        NA =  radius/ np.sqrt(radius**2 + self.prop_dis**2)
+        target_sigma = self.GP.lam / (2 * NA) / self.GP.dx
+        print("the numerical aperture: ", NA, "target spot size (number of points):", target_sigma)
         center = int(self.total_size//2)
         for step in tqdm(range(steps + 1)):
             # Compute prediction error
