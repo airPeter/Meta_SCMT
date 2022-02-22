@@ -30,7 +30,7 @@ class SCMT_1D():
         #np.sqrt((1 - NA)**2 / NA**2) 
         self.prop_dis = 0.25 * self.N * self.GP.period
         print(f"free space propogate distance: {self.prop_dis:3f}")
-        self.total_size = (self.N + 2 * (self.GP.Knn + 1)) * self.GP.res
+        self.total_size = (self.N + 2 * self.GP.Knn + 1) * self.GP.res
         self.far_field = far_field
         # if not Ni:
         #     Ni = 5 * N
@@ -79,8 +79,7 @@ class SCMT_1D():
         E0 = torch.tensor(E0, dtype = torch.complex64)
         E0 = E0.to(self.device)
         target_sigma = self.GP.lam / (2 * self.NA) / self.GP.dx
-        total_size = (self.N + 2 * (self.GP.Knn + 1)) * self.GP.res
-        center = int(total_size//2)
+        center = int(self.total_size//2)
         for step in tqdm(range(steps + 1)):
             # Compute prediction error
             If = self.model(E0)

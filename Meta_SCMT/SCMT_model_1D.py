@@ -113,7 +113,7 @@ class gen_U0(nn.Module):
         neff = self.neffnn(hs.view(-1, 1))
         for i in range(6):
             self.E0_slice[:,0, i * self.res: (i + 1) * self.res] = \
-                E0[self.res//2 + i * self.res: self.res//2 + (self.N + i) * self.res].view(self.N, self.res)
+                E0[i * self.res: (self.N + i) * self.res].view(self.N, self.res)
             Ey = self.enn(hs.view(-1, 1))
             Ey = Ey.view(self.N, self.modes, self.Ey_size)
             E_sum = torch.sum(Ey * self.E0_slice, dim= -1, keepdim= False) # shape: [N, modes]
@@ -137,7 +137,7 @@ class gen_En(nn.Module):
         self.modes = modes
         self.res = res
         self.Ey_size = 2 * (Knn + 1) * res
-        self.total_size = (N + 2 * (Knn + 1)) * res
+        self.total_size = (N + 2 * Knn + 1) * res
         self.register_buffer('En', torch.zeros((self.total_size,), dtype= torch.complex64))
     def forward(self, hs, U, neff, Ey):
         '''
@@ -151,7 +151,7 @@ class gen_En(nn.Module):
         for i in range(self.N):
             for m in range(self.modes):
                 temp_Ey = Ey[i, m]
-                center = i * self.res + self.res//2 + (self.Knn + 1) * self.res
+                center = i * self.res + (self.Knn + 1) * self.res
                 center = int(center)
                 radius = int((self.Knn + 1) * self.res)
                 self.En[center - radius: center + radius] += temp_Ey
@@ -230,8 +230,9 @@ class SCMT_Model(nn.Module):
         super(SCMT_Model, self).__init__()
 
         self.prop = prop_dis
+        total_size = (N + 2 * GP.Knn + 1) * GP.res
         self.metalayer1 = Metalayer(GP, COUPLING, N, layer_neff, layer_C, layer_K, layer_E)
-        self.freelayer1 = freespace_layer(GP.k, self.prop, N, GP.Knn, GP.res, GP.dx)
+        self.freelayer1 = freespace_layer(GP.k, self.prop, total_size, GP.dx)
     def forward(self, E0):
         En = self.metalayer1(E0)
         Ef = self.freelayer1(En)
@@ -242,16 +243,15 @@ class SCMT_Model(nn.Module):
         self.metalayer1.reset(path)
            
 class freespace_layer(nn.Module):
-    def __init__(self, k, prop, N, Knn, res, dx):
+    def __init__(self, k, prop, total_size, dx):
         super(freespace_layer, self).__init__()
-        G = torch.tensor(gen_G(k, prop, N, Knn, res, dx), dtype= torch.complex64)
+        G = torch.tensor(gen_G(k, prop, total_size, dx), dtype= torch.complex64)
         self.register_buffer('G', G)
     def forward(self, En):
         Ef = self.G @ En
         return Ef
 
-def gen_G(k, prop, N, Knn, res, dx):
-    total_size = (N + 2 * (Knn + 1)) * res
+def gen_G(k, prop, total_size, dx):
     x = (np.arange(total_size)) * dx
     inplane_dis = np.reshape(x, (1,-1)) - np.reshape(x, (-1, 1))
     r = np.sqrt(prop**2 + inplane_dis**2)
