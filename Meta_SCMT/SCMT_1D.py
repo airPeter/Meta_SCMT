@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 from .SCMT_model_1D import Metalayer, SCMT_Model
 import torch
 from torch import optim
+import os
 from torch.utils.tensorboard import SummaryWriter
 from .utils import gen_decay_rate
 from tqdm import tqdm
@@ -26,7 +27,8 @@ class SCMT_1D():
         '''
         self.N = N
         self.NA = NA
-        self.prop_dis = np.sqrt((1 - NA)**2 / NA**2) * self.N * self.GP.period
+        #np.sqrt((1 - NA)**2 / NA**2) 
+        self.prop_dis = 0.25 * self.N * self.GP.period
         print(f"free space propogate distance: {self.prop_dis:3f}")
         self.total_size = (self.N + 2 * (self.GP.Knn + 1)) * self.GP.res
         self.far_field = far_field
@@ -47,15 +49,24 @@ class SCMT_1D():
     
     def forward(self, theta = 0):
         #incident field plane wave
-        E0 = (torch.ones((self.total_size), dtype = torch.complex128)) * 10
+        X = np.arange(self.total_size) * self.GP.dx
+        E0 = np.exp(1j * self.GP.k * np.sin(theta) * X)
+        E0 = torch.tensor(E0, dtype = torch.complex64)
         E0 = E0.to(self.device)
         E_out = self.model(E0)
         E_out = E_out.cpu().detach().numpy()
         return E_out
     
-    def optimize(self, steps, lr, out_path = 'output_cmt/', theta = 0, NA = 0.6):
+    def optimize(self, notes, steps, lr = 0.1, theta = 0, NA = 0.9):
         if not self.far_field:
             raise Exception("Should initalize model with far_field=True")
+        if self.COUPLING:
+            out_path = 'output_cmt/'
+        else:
+            out_path = 'output_no_coupling/'
+        if not os.path.exists(out_path):
+            os.mkdir(out_path)
+        out_path = out_path + notes + '/'
         writer = SummaryWriter(out_path + 'summary1')
         optimizer = optim.Adam(self.model.parameters(), lr=lr)
         decay_steps = steps // 10
@@ -64,7 +75,9 @@ class SCMT_1D():
         self.model.train()
 
         running_loss = 0.0
-        E0 = (torch.ones((self.total_size), dtype = torch.complex128)) * 10
+        X = np.arange(self.total_size) * self.GP.dx
+        E0 = np.exp(1j * self.GP.k * np.sin(theta) * X)
+        E0 = torch.tensor(E0, dtype = torch.complex64)
         E0 = E0.to(self.device)
         target_sigma = self.GP.Lam / (2 * self.NA) / self.GP.dx
         total_size = (self.N + 2 * (self.GP.Knn + 1)) * self.GP.res
@@ -77,7 +90,7 @@ class SCMT_1D():
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-            #grad = model.matalayer1.n_eff_paras.detach()
+            #grad = model.metalayer1.n_eff_paras.detach()
             #grad_peek(grad)
             if step % decay_steps == 0 and step != 0:
                 my_lr_scheduler.step()
@@ -89,7 +102,7 @@ class SCMT_1D():
                 writer.add_scalar('training loss',
                                 scalar_value = running_loss / step, global_step = step)
                 writer.add_figure('hs',
-                                plot_hs(self.model.matalayer1.hs.cpu().detach().numpy()),
+                                plot_hs(self.model.metalayer1.hs.cpu().detach().numpy()),
                                 global_step= step)
                 writer.add_figure('If',
                                 plot_If(If),
@@ -99,7 +112,7 @@ class SCMT_1D():
                 # loss_list.append(loss)
                 # print(f"loss: {loss:>7f}  [{step:>5d}/{train_steps:>5d}]")
         print("final lr:", my_lr_scheduler.get_last_lr())
-        out_hs = self.model.matalayer1.hs.cpu().detach().numpy()
+        out_hs = self.model.metalayer1.hs.cpu().detach().numpy()
         np.savetxt(out_path + 'waveguide_widths.csv', out_hs, delimiter=",")
         print('parameters saved.')
         return None
@@ -117,19 +130,25 @@ class SCMT_1D():
             init_hs_para = np.log(hs_paras / (1 - hs_paras)) 
             init_hs_para = torch.tensor(init_hs_para, dtype = torch.float)
             state_dict = model.state_dict()
-            state_dict['h_paras'] = init_hs_para
+            if self.far_field:
+                state_dict['metalayer1.h_paras'] = init_hs_para
+            else:
+                state_dict['h_paras'] = init_hs_para
             model.load_state_dict(state_dict)
             #with torch.no_grad():
-            #    model.matalayer1.h_paras.data = h_paras_initial
+            #    model.metalayer1.h_paras.data = h_paras_initial
             print('initialized by loaded h_paras.')
             return None 
     def vis_field(self, E):
-        fig, axs = plt.subplots(1, 2, figsize = (12, 6))
-        px = (np.arange(self.total_size) - self.total_size//2) * self.GP.dx
-        plot1 = axs[0].plot(px, np.angle(E), label = "phase")
-        axs[0].legend()
-        plot2 = axs[1].plot(px, np.abs(E), label = "amp")
-        axs[1].legend()
+        if self.far_field:
+            plt.plot(E, label = 'intensity')
+        else:
+            fig, axs = plt.subplots(1, 2, figsize = (12, 6))
+            #px = (np.arange(self.total_size) - self.total_size//2) * self.GP.dx
+            plot1 = axs[0].plot(np.angle(E), label = "phase")
+            axs[0].legend()
+            plot2 = axs[1].plot(np.abs(E), label = "amp")
+            axs[1].legend()
         plt.show()
         return None
 

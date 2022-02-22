@@ -67,22 +67,6 @@ class Metalayer(torch.nn.Module):
         self.genc.reset(path)
         self.genk.reset(path)
         self.genu0.reset(path)
-    
-class SCMT_Model(nn.Module):
-    def __init__(self, prop_dis, GP, COUPLING, N, layer_neff, layer_C, layer_K, layer_E):
-        super(SCMT_Model, self).__init__()
-
-        self.prop = prop_dis
-        self.matalayer1 = Metalayer(GP, COUPLING, N, layer_neff, layer_C, layer_K, layer_E)
-        self.freelayer1 = freespace_layer(GP.k, self.prop, N, GP.Knn, GP.res, GP.dx)
-    def forward(self, E0):
-        En = self.matalayer1(E0)
-        Ef = self.freelayer1(En)
-        If = torch.abs(Ef)**2
-        #If = If/If.max()
-        return If
-    def reset(self):
-        self.matalayer1.reset()
 
 class gen_neff(nn.Module):
     def __init__(self, modes, layers):
@@ -239,11 +223,27 @@ class gen_K(nn.Module):
     def reset(self, path):
         model_state = torch.load(path + "fitting_K_state_dict")
         self.knn.load_state_dict(model_state)
-        
+
+class SCMT_Model(nn.Module):
+    def __init__(self, prop_dis, GP, COUPLING, N, layer_neff, layer_C, layer_K, layer_E):
+        super(SCMT_Model, self).__init__()
+
+        self.prop = prop_dis
+        self.metalayer1 = Metalayer(GP, COUPLING, N, layer_neff, layer_C, layer_K, layer_E)
+        self.freelayer1 = freespace_layer(GP.k, self.prop, N, GP.Knn, GP.res, GP.dx)
+    def forward(self, E0):
+        En = self.metalayer1(E0)
+        Ef = self.freelayer1(En)
+        If = torch.abs(Ef)**2
+        #If = If/If.max()
+        return If
+    def reset(self, path):
+        self.metalayer1.reset(path)
+           
 class freespace_layer(nn.Module):
     def __init__(self, k, prop, N, Knn, res, dx):
         super(freespace_layer, self).__init__()
-        G = torch.tensor(gen_G(k, prop, N, Knn, res, dx))
+        G = torch.tensor(gen_G(k, prop, N, Knn, res, dx), dtype= torch.complex64)
         self.register_buffer('G', G)
     def forward(self, En):
         Ef = self.G @ En
@@ -251,9 +251,9 @@ class freespace_layer(nn.Module):
 
 def gen_G(k, prop, N, Knn, res, dx):
     total_size = (N + 2 * (Knn + 1)) * res
-    x = np.arange(total_size) * dx
-    dx = np.reshape(x, (1,-1)) - np.reshape(x, (-1, 1))
-    r = np.sqrt(prop**2 + dx**2)
+    x = (np.arange(total_size)) * dx
+    inplane_dis = np.reshape(x, (1,-1)) - np.reshape(x, (-1, 1))
+    r = np.sqrt(prop**2 + inplane_dis**2)
     v = 1
     G = -1j * k / 4 * special.hankel1(v, k * r) * prop / r * dx
     return G

@@ -37,7 +37,7 @@ class Gen_modes1D():
             load_total_hs = len(modes_lib.keys())
             if total_hs != load_total_hs:
                 print("expected total waveguides:" + str(total_hs) + "loaded:" + str(load_total_hs))
-                raise Exception('You indeed change the physical setup without regenerate the modes!')
+                #raise Exception('You indeed change the physical setup without regenerate the modes!')
             self.modes_lib = modes_lib
         else:
             GP = self.GP
