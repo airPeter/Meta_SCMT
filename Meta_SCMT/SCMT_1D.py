@@ -57,7 +57,7 @@ class SCMT_1D():
         E_out = E_out.cpu().detach().numpy()
         return E_out
     
-    def optimize(self, notes, steps, lr = 0.1, theta = 0, NA = 0.9):
+    def optimize(self, notes, steps, lr = 0.01, theta = 0, NA = 0.9):
         if not self.far_field:
             raise Exception("Should initalize model with far_field=True")
         if self.COUPLING:
@@ -74,12 +74,11 @@ class SCMT_1D():
         my_lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=decay_rate)
         self.model.train()
 
-        running_loss = 0.0
         X = np.arange(self.total_size) * self.GP.dx
         E0 = np.exp(1j * self.GP.k * np.sin(theta) * X)
         E0 = torch.tensor(E0, dtype = torch.complex64)
         E0 = E0.to(self.device)
-        target_sigma = self.GP.Lam / (2 * self.NA) / self.GP.dx
+        target_sigma = self.GP.lam / (2 * self.NA) / self.GP.dx
         total_size = (self.N + 2 * (self.GP.Knn + 1)) * self.GP.res
         center = int(total_size//2)
         for step in tqdm(range(steps + 1)):
@@ -95,12 +94,11 @@ class SCMT_1D():
             if step % decay_steps == 0 and step != 0:
                 my_lr_scheduler.step()
                 
-            running_loss += loss.item()
             if step % decay_steps == 0:    # every 1000 mini-batches...
 
                 # ...log the running loss
                 writer.add_scalar('training loss',
-                                scalar_value = running_loss / step, global_step = step)
+                                scalar_value = loss.item(), global_step = step)
                 writer.add_figure('hs',
                                 plot_hs(self.model.metalayer1.hs.cpu().detach().numpy()),
                                 global_step= step)
