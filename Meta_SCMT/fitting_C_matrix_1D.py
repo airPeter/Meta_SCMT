@@ -26,12 +26,12 @@ class Fitting_C_matrix_1D():
         self.model = Model(3, self.channels, layers= layers, nodes = 64)
         batch_size = 512
         Y_pred = train(self.model, X, Y, steps, lr, batch_size)
-        torch.save(self.model, self.path + "fitting_C_state_dict")
+        torch.save(self.model.state_dict(), self.path + "fitting_C_state_dict")
         print("model saved.")
         if vis:
-            Y_pred = Y_pred.reshape(-1, self.Knn * 2 + 1, self.channels)
-            Y = Y.reshape(-1, self.Knn * 2 + 1, self.channels)
-            for dis in range(-self.Knn, self.Knn + 1):
+            Y_pred = Y_pred.reshape(-1, self.Knn * 2 + 2, self.channels)
+            Y = Y.reshape(-1, self.Knn * 2 + 2, self.channels)
+            for dis in range(-self.Knn, self.Knn + 2):
                 plt.figure()
                 for ch in range(self.channels):
                     dis_index = dis + self.Knn
@@ -66,7 +66,7 @@ class Fitting_C_matrix_1D():
             C_input = []
             for hi in tqdm(widths):
                 for hj in widths:
-                    for dis in range(-self.Knn, self.Knn + 1):
+                    for dis in range(-self.Knn, self.Knn + 2):
                         dis_norm = dis / self.Knn
                         C_input.append([hi,hj,dis_norm])
                         C_map_modes = []
@@ -89,7 +89,20 @@ class Fitting_C_matrix_1D():
             h: waveguide width
             m: mode
             dis = i - j: -Knn, -Knn - 1, ..., 0, 1, ... Knn
+            if dis == Knn + 1: c = 0. this is will be used in coalease C_stripped matrix to C_sparse matrix.
+            for 2D, we will add, if dis = (Knn, Knn) cal_c output 0.
+            the reason for this is, think about how C_stripped is stored.
+            some coordinate is invalid because it go out of the range (0,N).
+            For any invalid coo, we will set dis = (2, 2), then the value is zero. when we do sparse.coalesce(),
+            the zero is added on the diagonal element. In this way, the influence of the invalid coo is removed.
         '''
+        if dis == self.Knn + 1:
+            return 0
+        if dis == 0:
+            if mi == mj: #for the same mode, no matter it exist or not, Cii = 0.
+                return 1
+            else:           #for diff mode of the same waveguide, cij = 0.
+                return 0
         dis = dis * self.res
         hi_index = h2index(hi, self.dh)
         hj_index = h2index(hj, self.dh)

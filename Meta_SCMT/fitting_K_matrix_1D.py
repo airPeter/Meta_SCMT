@@ -32,7 +32,7 @@ class Fitting_K_matrix_1D():
         self.model = Model(3, self.channels, layers= layers, nodes = 64)
         batch_size = 512
         Y_pred = train(self.model, X, Y, steps, lr, batch_size)
-        torch.save(self.model, self.path + "fitting_K_state_dict")
+        torch.save(self.model.state_dict(), self.path + "fitting_K_state_dict")
         print("model saved.")
         if vis:
             Y_pred = Y_pred.reshape(-1, self.Knn * 2 + 1, self.channels)

@@ -22,7 +22,7 @@ class Fitting_E_field_1D():
         self.model = Model(1, Y.shape[-1], layers= layers, nodes = 128)
         batch_size = X.shape[0]
         Y_pred = train(self.model, X, Y, steps, lr, batch_size)
-        torch.save(self.model, self.path + "fitting_E_state_dict")
+        torch.save(self.model.state_dict(), self.path + "fitting_E_state_dict")
         print("model saved.")
         if vis:
             indexs = np.random.randint(0, Y.shape[0], size = (3,))
