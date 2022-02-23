@@ -22,7 +22,7 @@ class Metalayer(torch.nn.Module):
         self.dh = GP.dh
         self.wh = GP.wh
         self.k = GP.k
-        self.neffnn = gen_neff(GP.modes, ln).requires_grad_(requires_grad=True)
+        self.neffnn = gen_neff(GP.modes, ln)
         self.genc = gen_C(GP.modes, lc, N, GP.Knn)
         self.genk = gen_K(GP.modes, lk, N, GP.Knn)
         self.genu0 = gen_U0(GP.modes, ln, le, GP.res, N, GP.n0, GP.C_EPSILON, GP.dx, GP.Knn)
@@ -72,7 +72,7 @@ class Metalayer(torch.nn.Module):
 class gen_neff(nn.Module):
     def __init__(self, modes, layers):
         super(gen_neff, self).__init__()    
-        self.model = Model(in_size = 1, out_size = modes, layers = layers)
+        self.model = Model(in_size = 1, out_size = modes, layers = layers).requires_grad_(requires_grad=False)
     def forward(self, hs):
         '''
         input: 

@@ -19,7 +19,7 @@ class Fullwave_1D():
         else:
             self.res = res
         print("Fullwave resolution:", str(self.res))
-        self.out_res = self.GP.dx
+        self.out_res = int(round(1 / self.GP.dx))
         self.N = N
         self.prop_dis = prop_dis
         # Simulation domain size (in micron)
@@ -94,27 +94,38 @@ class Fullwave_1D():
         with open(data_path + self.task_name + "/tidy3d.log") as f:
             print(f.read())
         if self.sim == None:
-            self.sim = td.Simulation.import_json(data_path + self.task_name + "/simulation.json")
+            raise Exception("init sim first, then you can download data.")
+            #self.sim = td.Simulation.import_json(data_path + self.task_name + "/simulation.json")
         self.sim.load_results(data_path + self.task_name + '/monitor_data.hdf5')
         return None
     
-    def vis_monitor(self,path = None):
+    def vis_monitor(self,path = None, return_data = False):
         if path:
-            sim = td.Simulation.import_json(path + "simulation.json")
-            sim.load_results(path + 'monitor_data.hdf5')
-            self.sim = sim
+            if self.sim == None:
+                raise Exception("init sim first, then you can download data.")
+            self.sim.load_results(path + 'monitor_data.hdf5')
         monitors = self.sim.monitors
-        mdata = self.sim.data(monitors[1])
-        Ey_focal_plane = mdata['E'][1,:,0,0,0]
-        I = np.abs(Ey_focal_plane)**2
-        px = self.sim.grid.mesh_step[0] * np.arange(Ey_focal_plane.size)
+        mdata = self.sim.data(monitors[0])
+        Ey_xz_plane = mdata['E'][1,:,0,:,0]
+        index_focal = int(round((1 + self.GP.wh + self.prop_dis) * self.res))
+        I_focal = np.abs(Ey_xz_plane[:,index_focal])**2
+        stride = int(round(self.res / self.out_res))
+        Ey_xz_plane = Ey_xz_plane[::stride, ::stride].T
+        px = 1/self.res * np.arange(I_focal.size)
+        I_focal = I_focal[::stride]
+        px = px[::stride]
         fig, ax = plt.subplots(1, 2, figsize=(12, 6))
-        self.sim.viz_field_2D(monitors[0], ax=ax[0], cbar=True, comp='y', val='abs')
-        ax[1].plot(px, I)
+        #self.sim.viz_field_2D(monitors[0], ax=ax[0], cbar=True, comp='y', val='abs')
+        plot1 = ax[0].imshow(np.abs(Ey_xz_plane))
+        plt.colorbar(plot1, ax = ax[0])
+        ax[0].set_title("field amplitude.")
+        ax[1].plot(px, I_focal)
         ax[1].set_xlabel("Position [um]")
         ax[1].set_ylabel("Intensity")
         ax[1].set_title("Focal plane intensity.")
         plt.show()
+        if return_data:
+            return px, Ey_xz_plane, I_focal
         return None
     
 

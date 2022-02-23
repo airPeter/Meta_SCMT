@@ -111,7 +111,7 @@ class SCMT_1D():
         print("final lr:", my_lr_scheduler.get_last_lr())
         out_hs = self.model.metalayer1.hs.cpu().detach().numpy()
         np.savetxt(out_path + 'waveguide_widths.csv', out_hs, delimiter=",")
-        print('parameters saved.')
+        print('parameters saved in.', out_path)
         return None
 
     def init_paras(self, model, cache_path, init_hs = None):
@@ -139,6 +139,7 @@ class SCMT_1D():
     def vis_field(self, E):
         if self.far_field:
             plt.plot(E, label = 'intensity')
+            plt.legend()
         else:
             fig, axs = plt.subplots(1, 2, figsize = (12, 6))
             #px = (np.arange(self.total_size) - self.total_size//2) * self.GP.dx
