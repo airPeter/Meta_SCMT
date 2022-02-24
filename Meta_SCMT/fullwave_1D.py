@@ -138,14 +138,44 @@ class Fullwave_1D():
         ax[0].plot(data_near['x'], np.angle(data_near['Ey']), label = 'near field phase')
         ax[0].set_xlabel("Position [um]")
         ax[0].legend()
-        ax[1].plot(data_far['x'], np.abs(data_far['Ey']), label = 'far field amplitude')
+        ax[1].plot(data_far['x'], np.abs(data_far['Ey'])**2, label = 'far field Intensity')
         ax[1].set_xlabel("Position [um]")
         ax[1].legend()
         plt.show()
         return Ey_xz_raw, data_near, data_far
 
+    # def vis_monitor(self,path = None, return_data = False):
+    #     if path:
+    #         if self.sim == None:
+    #             raise Exception("init sim first, then you can download data.")
+    #         self.sim.load_results(path + 'monitor_data.hdf5')
+    #     monitors = self.sim.monitors
+    #     mdata = self.sim.data(monitors[0])
+    #     Ey_xz_plane = mdata['E'][1,:,0,:,0]
+    #     index_focal = int(round((1 + self.GP.wh + self.prop_dis) * self.res))
+    #     I_focal = np.abs(Ey_xz_plane[:,index_focal])**2
+    #     stride = int(round(self.res / self.out_res))
+    #     Ey_xz_plane = Ey_xz_plane[::stride, ::stride].T
+    #     px = 1/self.res * np.arange(I_focal.size)
+    #     I_focal = I_focal[::stride]
+    #     px = px[::stride]
+    #     fig, ax = plt.subplots(1, 2, figsize=(12, 6))
+    #     #self.sim.viz_field_2D(monitors[0], ax=ax[0], cbar=True, comp='y', val='abs')
+    #     plot1 = ax[0].imshow(np.abs(Ey_xz_plane))
+    #     plt.colorbar(plot1, ax = ax[0])
+    #     ax[0].set_title("field amplitude.")
+    #     ax[1].plot(px, I_focal)
+    #     ax[1].set_xlabel("Position [um]")
+    #     ax[1].set_ylabel("Intensity")
+    #     ax[1].set_title("Focal plane intensity.")
+    #     plt.show()
+    #     if return_data:
+    #         return px, Ey_xz_plane, I_focal
+    #     return None
+    
 # def resize_2d(field, step1, step2):
 #     '''
+#       tooooooooo slow!
 #     input:
 #         field 2D data needed to be resampled.
 #         step1, current step size.
@@ -176,8 +206,8 @@ class Fullwave_1D():
 
 def resize_1d(field, step1, num_steps2):
     phy_size_x = field.shape[0] * step1
-    xp = np.linspace(0, phy_size_x, num = field.shape[0])
-    x = np.linspace(0, phy_size_x, num = num_steps2)
+    xp = np.linspace(-phy_size_x/2, phy_size_x/2, num = field.shape[0])
+    x = np.linspace(-phy_size_x/2, phy_size_x/2, num = num_steps2)
     out_field = np.interp(x, xp, field)
     out = {}
     out['Ey'] = out_field
