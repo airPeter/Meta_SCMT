@@ -25,7 +25,7 @@ from .fullwave_1D import Fullwave_1D
 #from modes2D import gen_modes2D
 
 class GP():
-    def __init__(self,dim, modes, period, res, wh, lam, n_sub, n_wg, theta, h_min, h_max, dh, path = 'sim_cache/'):
+    def __init__(self,dim, modes, period, res, wh, lam, n_sub, n_wg, h_min, h_max, dh, path = 'sim_cache/'):
         self.dim = dim #dim = 1 or 2.
         self.modes = modes #number of modes with in a single waveguide. modes <= 2 is usually good enough.
         self.C_EPSILON = 3 * 8.85 * 10**-4 # C * EPSILON
@@ -39,7 +39,6 @@ class GP():
         self.n_sub = n_sub #the refractive index of substrate.
         self.n_wg = n_wg# the refractive index of waveguide
         self.n0 = 1 #the refractive index of air.
-        self.theta = theta #the incident angle.
         self.h_min = h_min #h_min and h_max define the range of the width of waveguide.
         self.h_max = h_max
         self.dh = dh #the step size of h.

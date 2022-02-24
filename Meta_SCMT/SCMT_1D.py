@@ -137,16 +137,20 @@ class SCMT_1D():
             print('initialized by loaded h_paras.')
             return None 
     def vis_field(self, E):
+        px = (np.arange(self.total_size) - self.total_size//2) * self.GP.dx
         if self.far_field:
-            plt.plot(E, label = 'intensity')
+            plt.plot(px, E, label = 'intensity')
             plt.legend()
+            plt.xlabel("postion [um]")
         else:
             fig, axs = plt.subplots(1, 2, figsize = (12, 6))
-            #px = (np.arange(self.total_size) - self.total_size//2) * self.GP.dx
-            plot1 = axs[0].plot(np.angle(E), label = "phase")
+            
+            plot1 = axs[0].plot(px, np.angle(E), label = "phase")
             axs[0].legend()
-            plot2 = axs[1].plot(np.abs(E), label = "amp")
+            axs[0].set_xlabel("postion [um]")
+            plot2 = axs[1].plot(px, np.abs(E), label = "amp")
             axs[1].legend()
+            axs[1].set_xlabel("postion [um]")
         plt.show()
         return None
 
