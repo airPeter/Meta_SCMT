@@ -70,7 +70,7 @@ class Fullwave_1D():
             angle_theta=theta,
             angle_phi=0,
             direction='forward',
-            waist_radius=x_size * 2,
+            waist_radius=x_size * 10,
             pol_angle=np.pi/2) #S polarization.
         #x-z plane monitor.
         freq_mnt1 = td.FreqMonitor(center=[0, 0, 0], size=[x_size, 0, z_size], freqs=[fcen])
@@ -80,7 +80,7 @@ class Fullwave_1D():
         # Initialize simulation
         self.sim = td.Simulation(size=sim_size,
                             resolution=self.res,
-                            structures=waveguides,
+                            #structures=waveguides,
                             sources=[gaussian_beam],
                             monitors=[freq_mnt1, freq_mnt2],
                             run_time=run_time,
@@ -122,7 +122,7 @@ class Fullwave_1D():
         index_far = int(round((1 + self.GP.wh + self.prop_dis)/step1))
         Ey_near = Ey_xz_raw[index_near, :]
         Ey_far = Ey_xz_raw[index_far, :]
-        num_steps2 = (2 * self.GP.Knn + 1 + self.N) * self.res
+        num_steps2 = (2 * self.GP.Knn + 1 + self.N) * self.GP.res
         data_near = resize_1d(Ey_near, step1, num_steps2)
         data_far = resize_1d(Ey_far, step1, num_steps2)
         
