@@ -23,6 +23,8 @@ from .fitting_K_matrix_1D import Fitting_K_matrix_1D
 from .SCMT_1D import SCMT_1D
 from .fullwave_1D import Fullwave_1D
 from .modes2D import Gen_modes2D
+from .fitting_C_matrix_2D import Fitting_C_matrix_2D
+from .fitting_E_field_2D import Fitting_E_field_2D
 
 class GP():
     def __init__(self,dim, modes, period, res, wh, lam, n_sub, n_wg, h_min, h_max, dh, path = 'sim_cache/'):
@@ -75,4 +77,7 @@ class Sim():
             if self.GP.modes > 1:
                 raise Exception("Currently, only support modes = 1 for 2 dimensional waveguide.")
             self.gen_modes = Gen_modes2D(self.GP)
+            self.fitting_neffs = Fitting_neffs(self.GP.modes, self.gen_modes, self.GP.dh, self.GP.path)
+            self.fftting_C = Fitting_C_matrix_2D(self.gen_modes, self.GP.modes, self.GP.res, self.GP.dh, self.GP.dx, self.GP.Knn, self.GP.path)
+            self.fftting_E = Fitting_E_field_2D(self.gen_modes, self.GP.modes, self.GP.res, self.GP.dh, self.GP.dx, self.GP.Knn, self.GP.path)
             

@@ -2,6 +2,7 @@
 support modes <=2, but modes = 2 not tested.
 '''
 import warnings
+from cv2 import exp
 import numpy as np
 from .utils import h2index
 import matplotlib.pyplot as plt
@@ -62,6 +63,7 @@ class Gen_modes2D():
         return None
     def monitor(self, batch_path = None):
         if batch_path:
+            batch_path = self.GP.path + batch_path
             if os.path.exists(batch_path):
                 self.batch = web.Batch.load_from_file(batch_path)
             else:
@@ -89,6 +91,7 @@ class Gen_modes2D():
             self.modes_lib = modes_lib
         else:
             if batch_path:
+                batch_path = self.GP.path + batch_path
                 self.batch = web.Batch.load_from_file(batch_path)
             GP = self.GP
             # get results from all jobs
@@ -116,6 +119,8 @@ class Gen_modes2D():
                 for n_mode in range(GP.modes):
                     modes_lib[h_index][n_mode] = {}
                     neff, _, Ey, Hx = get_field_mode(sims_loaded[i], n_mode)
+                    Ey = self.resize_field(Ey)
+                    Hx = self.resize_field(Hx)
                     if neff > GP.n0 + 0.1:
                         modes_lib[h_index][n_mode]['neff'] = neff
                         normalization = np.sqrt(- 2 * np.sum(Ey * Hx) * GP.dx**2)
@@ -129,6 +134,17 @@ class Gen_modes2D():
             np.save(load_path, self.modes_lib)
             print("generated modes lib saved at:" + load_path)
         return None
+
+    def resize_field(self, field):
+        expect_size = 2 * (self.GP.Knn + 1) * self.GP.res
+        out_f = np.zeros((expect_size, expect_size), dtype= field.dtype)
+        c0 = int(field.shape[0]//2)
+        c1 = int(field.shape[1]//2)
+        r0 = min(int(expect_size//2), field.shape[0]//2)
+        r1 = min(int(expect_size//2), field.shape[1]//2)
+        c_out = expect_size//2
+        out_f[c_out - r0: c_out + r0, c_out - r1: c_out + r1] = field[c0 - r0: c0 + r0, c1 - r1: c1 + r1]
+        return out_f
     
     def vis_field(self,H):
         '''
