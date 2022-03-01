@@ -3,7 +3,7 @@ from sqlalchemy import true
 import torch
 import torch.nn as nn
 from .utils import Model
-from .sputil_1D import gen_coo_sparse, gen_dis_CK_input, gen_input_neff
+from .sputil_1D import gen_coo_sparse, gen_dis_CK_input, gen_input_hs
 from scipy import special
 
 class Metalayer(torch.nn.Module):
@@ -28,7 +28,7 @@ class Metalayer(torch.nn.Module):
         self.genu0 = gen_U0(GP.modes, ln, le, GP.res, N, GP.n0, GP.C_EPSILON, GP.dx, GP.Knn)
         self.genen = gen_En(GP.modes, GP.res, N, GP.n0, GP.C_EPSILON, GP.dx, GP.Knn)
         self.sig = torch.nn.Sigmoid()
-        self.gen_neff_input = gen_input_neff(N, GP.Knn)
+        self.gen_hs_input = gen_input_hs(N, GP.Knn)
         dis = torch.tensor(gen_dis_CK_input(N, GP.Knn), dtype = torch.float, requires_grad = False)
         self.register_buffer('dis', dis)
     def forward(self, E0):
@@ -44,8 +44,8 @@ class Metalayer(torch.nn.Module):
             Uz = P * U0 #shape [N*modes,]
         else:
             with torch.set_grad_enabled(False):
-                neff_input = self.gen_neff_input(self.hs)
-                CK_input = torch.cat([neff_input, self.dis],dim = -1)
+                hs_input = self.gen_hs_input(self.hs)
+                CK_input = torch.cat([hs_input, self.dis],dim = -1)
                 CK_input = CK_input.view(-1,3)
                 C = self.genc(CK_input)
                 K = self.genk(CK_input)
@@ -105,7 +105,7 @@ class gen_U0(nn.Module):
         '''
         input:
             hs: array of waveguide widths [N,]
-            E0: input field [(N + Ey_size - 1) * period_resolution]
+            E0: input field [(N +  2 * Knn + 1) * res,]
         output:
             neff: refractive index of each mode. shape [N, modes]
             T: modes amplitude coupled in. shape [N, number of modes]

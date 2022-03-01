@@ -25,7 +25,8 @@ from .fullwave_1D import Fullwave_1D
 from .modes2D import Gen_modes2D
 from .fitting_C_matrix_2D import Fitting_C_matrix_2D
 from .fitting_E_field_2D import Fitting_E_field_2D
-
+from .fitting_K_matrix_2D import Fitting_K_matrix_2D
+from .SCMT_2D import SCMT_2D
 class GP():
     def __init__(self,dim, modes, period, res, wh, lam, n_sub, n_wg, h_min, h_max, dh, path = 'sim_cache/'):
         self.dim = dim #dim = 1 or 2.
@@ -80,4 +81,6 @@ class Sim():
             self.fitting_neffs = Fitting_neffs(self.GP.modes, self.gen_modes, self.GP.dh, self.GP.path)
             self.fftting_C = Fitting_C_matrix_2D(self.gen_modes, self.GP.modes, self.GP.res, self.GP.dh, self.GP.dx, self.GP.Knn, self.GP.path)
             self.fftting_E = Fitting_E_field_2D(self.gen_modes, self.GP.modes, self.GP.res, self.GP.dh, self.GP.dx, self.GP.Knn, self.GP.path)
-            
+            self.fftting_K = Fitting_K_matrix_2D(self.gen_modes, self.GP.modes, self.GP.res, self.GP.dh, self.GP.dx, self.GP.Knn, self.GP.path,
+                                                self.GP.n_wg, self.GP.n0, self.GP.k, self.GP.C_EPSILON, self.GP.period)
+            self.scmt = SCMT_2D(self.GP)

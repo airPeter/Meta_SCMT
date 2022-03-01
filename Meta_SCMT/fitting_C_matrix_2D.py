@@ -112,7 +112,8 @@ class Fitting_C_matrix_2D():
                 return 1
             else:           #for diff mode of the same waveguide, cij = 0.
                 return 0
-        dis = dis * self.res
+        ds = dis[0] * self.res
+        dt = dis[1] * self.res
         hi_index = h2index(hi, self.dh)
         hj_index = h2index(hj, self.dh)
         Ey = modes_lib[hi_index][mi]['Ey']
@@ -122,6 +123,6 @@ class Fitting_C_matrix_2D():
         Ey_ext = np.zeros((size + 2 * ds_max, size + 2 * ds_max))
         Hx_ext = Ey_ext.copy()
         Ey_ext[ds_max:ds_max + size, ds_max:ds_max + size] = Ey
-        Hx_ext[ds_max - dis[0]:ds_max - dis[0] + size, ds_max - dis[1]:ds_max - dis[1] + size] = Hx
+        Hx_ext[ds_max - ds:ds_max - ds + size, ds_max - dt:ds_max - dt + size] = Hx
         c_out = - 2 * np.sum(Ey_ext * Hx_ext) * self.dx**2
         return c_out

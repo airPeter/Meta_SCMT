@@ -56,9 +56,9 @@ def gen_nn_index(i, N, Knn):
             index_list.append(i + x)
     return index_list
 
-class gen_input_neff(nn.Module):
+class gen_input_hs(nn.Module):
     def __init__(self, N, Knn):
-        super(gen_input_neff, self).__init__()
+        super(gen_input_hs, self).__init__()
         #index_list shape: (N**2 * 13,)
         self.num_neighbors = 2 * Knn + 1
         index_list = torch.tensor(gen_index_list(N, Knn),dtype = torch.long)

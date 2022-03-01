@@ -1,5 +1,6 @@
 '''
 support modes <=2, but modes = 2 not tested.
+Assume that the mode field Ey, Hx only has real part. imagary part is zero.
 '''
 import warnings
 from cv2 import exp
@@ -34,6 +35,8 @@ class Gen_modes2D():
                     cnts[m] += 1
         print("total keys: ", len(self.modes_lib.keys()))
         print("number of non zero modes: ", cnts)
+        if cnts[0] != len(self.modes_lib.keys()):
+            warnings.warn("better make h_min larger, because some h that is too small to allow any mode to propagate.")
         return None
 
     def local_preview(self,width):
@@ -71,7 +74,7 @@ class Gen_modes2D():
         self.batch.monitor()
         return None
     
-    def gen(self,load = False, batch_path = None):
+    def gen(self,load = False, batch_path = None, offset = None):
         '''
             generate a dict that for each unique h, and mode, the neff, Ey, Hx are included.
         '''
@@ -103,6 +106,15 @@ class Gen_modes2D():
                     none_sims.append(i)
             if len(none_sims) > 0:
                 raise Exception("for these sims", none_sims, "tidy3d load went wrong. manually download the results from website to", self.base_dir, "and run gen again.")
+            if len(sims_loaded) != len(self.H):
+                warnings.warn("the number of simulated waveguides is:" + str(len(sims_loaded)) + ",  but the waveguides needed to be simulated is:" + str(len(self.H)) + "rerun upload!")
+                if offset == None:
+                    raise Exception("If len(H) < len(sims), this usually happens  because when you do the tidy3d sim, you set h to be [0.25 ~0.7],\
+                        when you get the results, you realize that for h = 0.25, 0.26, no mode is allowed. so you want to change the h -> [0.27~0.7].\
+                        in this case, you can add a offset on sims, so that sims[offset] is consist with H[0]. offset = 2, if dh = 0.01.")
+                else:
+                    warnings.warn("after offset: len(sims) =" + str(len(sims_loaded[offset:])) + " len(H) = " + str(len(self.H)) + " make sure you know want you are doing!")
+                    sims_loaded = sims_loaded[offset:]
             #visual the fields and saved in sim_cache/show_fields.
             root_path = GP.path + "show_fields/"
             if not os.path.exists(root_path):
@@ -119,6 +131,8 @@ class Gen_modes2D():
                 for n_mode in range(GP.modes):
                     modes_lib[h_index][n_mode] = {}
                     neff, _, Ey, Hx = get_field_mode(sims_loaded[i], n_mode)
+                    Ey = np.real(Ey)
+                    Hx = np.real(Hx)
                     Ey = self.resize_field(Ey)
                     Hx = self.resize_field(Hx)
                     if neff > GP.n0 + 0.1:

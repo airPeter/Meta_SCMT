@@ -21,8 +21,8 @@ class Fitting_neffs():
         self.dh = dh
         self.path = path
         
-    def fit(self, layers = 2, nodes = 64, steps = 10000, lr = 0.001, vis = True):
-        self.model = Model(in_size = 1, out_size = self.modes, layers = layers, nodes = nodes)
+    def fit(self, layers = 2, steps = 10000, lr = 0.001, vis = True):
+        self.model = Model(in_size = 1, out_size = self.modes, layers = layers, nodes = 128)
         modes_lib = self.gen_modes.modes_lib
         if modes_lib == None:
             raise Exception("gen modes first!")
