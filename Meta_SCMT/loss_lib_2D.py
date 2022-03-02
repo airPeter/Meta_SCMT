@@ -4,8 +4,7 @@ import numpy as np
 
 mse = torch.nn.MSELoss(reduction = 'sum')
 
-def max_center(If, total_size, max_length):
-    center = int(total_size//2)
+def max_center(If, center, max_length):
     intensity = torch.sum(torch.abs(If[center - int(max_length//2): center + int(max_length//2), center - int(max_length//2): center + int(max_length//2)]))
     return - intensity
 

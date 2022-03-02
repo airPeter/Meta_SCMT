@@ -83,6 +83,7 @@ class Metalayer(torch.nn.Module):
             else:
                 C_inv_sparse_list = []
                 for i in range(self.num_devs):
+                    C_stripped = C_stripped.view(-1,)
                     C_inv_sparse = self.gen_cinv[i](C_stripped.to(self.devs[i]), self.coo.to(self.devs[i]))
                     C_inv_sparse = C_inv_sparse.coalesce()
                     C_inv_sparse_list.append(C_inv_sparse)

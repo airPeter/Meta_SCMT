@@ -30,7 +30,7 @@ class SCMT_2D():
         self.total_size = (self.N + 2 * self.GP.Knn + 1) * self.GP.out_res
         self.far_field = far_field
         if Ni == None:
-            self.Ni = 5 * N
+            self.Ni = 11 * N
         else:
             self.Ni = Ni
         if k_row == None:
@@ -44,7 +44,7 @@ class SCMT_2D():
         else:
             self.devs = devs
         if Euler_steps == None:
-            self.Euler_steps = 400
+            self.Euler_steps = 1000
         else:
             self.Euler_steps = Euler_steps
         if far_field:
@@ -56,7 +56,7 @@ class SCMT_2D():
     
     def forward(self, theta = 0):
         #incident field plane wave
-        x = np.arange(self.total_size) * self.GP.dx
+        x = np.arange(self.total_size) * self.GP.period / self.GP.out_res
         y = x.copy()
         X, _ = np.meshgrid(x, y)
         E0 = np.exp(1j * self.GP.k * np.sin(theta) * X)
@@ -66,7 +66,7 @@ class SCMT_2D():
         E_out = E_out.cpu().detach().numpy()
         return E_out
     
-    def optimize(self, notes, steps, lr = 0.01, theta = 0):
+    def optimize(self, notes, steps, lr = 0.1, theta = 0):
         if not self.far_field:
             raise Exception("Should initalize model with far_field=True")
         if self.COUPLING:
@@ -83,7 +83,7 @@ class SCMT_2D():
         my_lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=decay_rate)
         self.model.train()
 
-        x = np.arange(self.total_size) * self.GP.dx
+        x = np.arange(self.total_size) * (self.GP.period / self.GP.out_res)
         y = x.copy()
         X, _ = np.meshgrid(x, y)
         E0 = np.exp(1j * self.GP.k * np.sin(theta) * X)
@@ -91,9 +91,9 @@ class SCMT_2D():
         E0 = E0.to(self.devs[0])
         radius = self.N * self.GP.period/2
         NA =  radius/ np.sqrt(radius**2 + self.prop_dis**2)
-        target_sigma = self.GP.lam / (2 * NA) / self.GP.dx
+        target_sigma = self.GP.lam / (2 * NA) / (self.GP.period / self.GP.out_res)
         print("the numerical aperture: ", NA, "target spot size (number of points):", target_sigma)
-        center = int(self.total_size//2)
+        center = int(round(self.total_size//2))
         for step in tqdm(range(steps + 1)):
             # Compute prediction error
             If = self.model(E0)
@@ -116,7 +116,7 @@ class SCMT_2D():
                                 plot_hs(self.model.metalayer1.hs.cpu().detach().numpy(), self.N),
                                 global_step= step)
                 writer.add_figure('If',
-                                plot_If(If, self.N),
+                                plot_If(If.cpu().detach().numpy()),
                                 global_step= step)       
                 # loss = loss.item()
                 # loss_list.append(loss)
@@ -173,8 +173,7 @@ def plot_hs(out_hs, N):
     plt.colorbar()
     return fig
 
-def plot_If(If, N):
-    If = If.reshape(N, N)
+def plot_If(If):
     fig = plt.figure()
     plt.imshow(If, cmap = 'magma')
     plt.colorbar()
