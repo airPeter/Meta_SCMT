@@ -38,8 +38,8 @@ class Metalayer(torch.nn.Module):
         self.neffnn = gen_neff(GP.modes, ln).to(self.devs[0])
         self.genc = gen_C(GP.modes, lc, N).to(self.devs[0])
         self.genk = gen_K(GP.modes, lk, N).to(self.devs[0])
-        self.genu0 = gen_U0(GP.modes, ln, le, GP.out_res, N, GP.n0, GP.C_EPSILON, GP.dx, GP.Knn).to(self.devs[0])
-        self.genen = gen_En(GP.modes, GP.out_res, N, GP.n0, GP.C_EPSILON, GP.dx, GP.Knn).to(self.devs[0])
+        self.genu0 = gen_U0(GP.modes, ln, le, GP.out_res, N, GP.n0, GP.C_EPSILON, GP.period, GP.Knn).to(self.devs[0])
+        self.genen = gen_En(GP.modes, GP.out_res, N, GP.n0, GP.C_EPSILON, GP.Knn).to(self.devs[0])
         self.sig = torch.nn.Sigmoid()
         if GP.Knn != 2:
             raise Exception("Knn = 2 is hardcode in sputil_2D module. So only Knn = 2 is supported.")
@@ -127,12 +127,12 @@ class gen_neff(nn.Module):
 
 
 class gen_U0(nn.Module):
-    def __init__(self, modes, ln, le, out_res, N, n0, C_EPSILON, dx, Knn):
+    def __init__(self, modes, ln, le, out_res, N, n0, C_EPSILON, period, Knn):
         super(gen_U0, self).__init__()
         self.N = N
         self.n0 = n0
         self.C_EPSILON = C_EPSILON
-        self.dx = dx
+        self.dx = period / out_res
         self.Knn = Knn
         self.modes = modes
         self.out_res = out_res
@@ -168,12 +168,11 @@ class gen_U0(nn.Module):
         self.neffnn.reset(path)
 
 class gen_En(nn.Module):
-    def __init__(self, modes, out_res, N, n0, C_EPSILON, dx, Knn):
+    def __init__(self, modes, out_res, N, n0, C_EPSILON, Knn):
         super(gen_En, self).__init__()
         self.N = N
         self.n0 = n0
         self.C_EPSILON = C_EPSILON
-        self.dx = dx
         self.Knn = Knn
         self.modes = modes
         self.out_res = out_res
@@ -245,7 +244,7 @@ class SCMT_Model(nn.Module):
         self.prop = prop_dis
         total_size = (N + 2 * GP.Knn + 1) * GP.out_res
         self.metalayer1 = Metalayer(Euler_steps, devs, GP, COUPLING, APPROX, Ni, k_row, N, layer_neff, layer_C, layer_K, layer_E)
-        self.freelayer1 = freespace_layer(self.prop, GP.lam, total_size, GP.dx).to(devs[0])
+        self.freelayer1 = freespace_layer(self.prop, GP.lam, total_size, GP.period / GP.out_res).to(devs[0])
     def forward(self, E0):
         En = self.metalayer1(E0)
         Ef = self.freelayer1(En)
