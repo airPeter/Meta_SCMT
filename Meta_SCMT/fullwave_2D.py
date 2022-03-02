@@ -151,11 +151,11 @@ def show_field(E, phy_size_x, phy_size_y):
     ax[0].set_ylabel("Position [um]")
     ax[0].set_title("Phase")
     plt.colorbar(plot0, ax = ax[0])
-    plot0 = ax[0].imshow(np.angle(E), cmap = 'magma', origin='lower', extent = (-phy_size_x/2, phy_size_x/2, -phy_size_y/2, phy_size_y/2))
+    plot0 = ax[1].imshow(np.angle(E), cmap = 'magma', origin='lower', extent = (-phy_size_x/2, phy_size_x/2, -phy_size_y/2, phy_size_y/2))
     ax[1].set_xlabel("Position [um]")
     ax[1].set_ylabel("Position [um]")
     ax[1].set_title("Amplitude")
-    plt.colorbar(plot0, ax = ax[0])
+    plt.colorbar(plot0, ax = ax[1])
     plt.show()
     return None
 
