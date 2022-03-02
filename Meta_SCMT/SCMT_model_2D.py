@@ -38,8 +38,8 @@ class Metalayer(torch.nn.Module):
         self.neffnn = gen_neff(GP.modes, ln).to(self.devs[0])
         self.genc = gen_C(GP.modes, lc, N).to(self.devs[0])
         self.genk = gen_K(GP.modes, lk, N).to(self.devs[0])
-        self.genu0 = gen_U0(GP.modes, ln, le, GP.res, N, GP.n0, GP.C_EPSILON, GP.dx, GP.Knn).to(self.devs[0])
-        self.genen = gen_En(GP.modes, GP.res, N, GP.n0, GP.C_EPSILON, GP.dx, GP.Knn).to(self.devs[0])
+        self.genu0 = gen_U0(GP.modes, ln, le, GP.out_res, N, GP.n0, GP.C_EPSILON, GP.dx, GP.Knn).to(self.devs[0])
+        self.genen = gen_En(GP.modes, GP.out_res, N, GP.n0, GP.C_EPSILON, GP.dx, GP.Knn).to(self.devs[0])
         self.sig = torch.nn.Sigmoid()
         if GP.Knn != 2:
             raise Exception("Knn = 2 is hardcode in sputil_2D module. So only Knn = 2 is supported.")
@@ -50,7 +50,7 @@ class Metalayer(torch.nn.Module):
         self.register_buffer('coo', coo)
     def forward(self, E0):
         '''
-        size of E0: (N + 2 * (Knnc + 1)) * self.res
+        size of E0: (N + 2 * (Knnc + 1)) * self.out_res
         '''
         self.hs = self.sig(self.h_paras.to(self.devs[0])) * (self.h_max - self.h_min) + self.h_min
         self.neffs = self.neffnn(self.hs.view(-1, 1))
@@ -127,7 +127,7 @@ class gen_neff(nn.Module):
 
 
 class gen_U0(nn.Module):
-    def __init__(self, modes, ln, le, res, N, n0, C_EPSILON, dx, Knn):
+    def __init__(self, modes, ln, le, out_res, N, n0, C_EPSILON, dx, Knn):
         super(gen_U0, self).__init__()
         self.N = N
         self.n0 = n0
@@ -135,17 +135,17 @@ class gen_U0(nn.Module):
         self.dx = dx
         self.Knn = Knn
         self.modes = modes
-        self.res = res
+        self.out_res = out_res
         self.neffnn = gen_neff(modes, ln).requires_grad_(requires_grad=False)
-        enn_out_size = modes * (2 * (Knn + 1) * res)**2
-        self.Ey_size = 2 * (Knn + 1) * res
+        enn_out_size = modes * (2 * (Knn + 1) * out_res)**2
+        self.Ey_size = 2 * (Knn + 1) * out_res
         self.enn = Model(1, enn_out_size, layers= le, nodes = 128).requires_grad_(requires_grad=False)
         self.register_buffer('E0_slice', torch.zeros((N**2, 1, self.Ey_size, self.Ey_size), dtype= torch.complex64))
     def forward(self, hs, E0):
         '''
         input:
             hs: array of waveguide widths [N**2,]
-            E0: input field [(N +  2 * Knn + 1) * res, (N +  2 * Knn + 1) * res]
+            E0: input field [(N +  2 * Knn + 1) * out_res, (N +  2 * Knn + 1) * out_res]
         output:
             neff: refractive index of each mode. shape [N**2, modes]
             T: modes amplitude coupled in. shape [N**2, number of modes]
@@ -153,8 +153,8 @@ class gen_U0(nn.Module):
         neff = self.neffnn(hs.view(-1, 1))
         for i in range(2 * (self.Knn + 1)):
             for j in range(2 * (self.Knn + 1)):
-                self.E0_slice[:,0, i * self.res: (i + 1) * self.res, j * self.res: (j + 1) * self.res] = \
-                    (E0[i * self.res: (self.N + i) * self.res, j * self.res: (self.N + j) * self.res]).reshape(self.N**2, self.res, self.res)
+                self.E0_slice[:,0, i * self.out_res: (i + 1) * self.out_res, j * self.out_res: (j + 1) * self.out_res] = \
+                    (E0[i * self.out_res: (self.N + i) * self.out_res, j * self.out_res: (self.N + j) * self.out_res]).reshape(self.N**2, self.out_res, self.out_res)
             Ey = self.enn(hs.view(-1, 1))
             Ey = Ey.view(self.N**2, self.modes, self.Ey_size, self.Ey_size)
             E_sum = torch.sum(Ey * self.E0_slice, dim= (-2, -1), keepdim= False) # shape: [N**2, modes]
@@ -163,12 +163,12 @@ class gen_U0(nn.Module):
             T = T.view(-1,)
         return Ey, T
     def reset(self, path):
-        model_state = torch.load(path + "fitting_E_state_dict", map_location=torch.device('cpu'))
+        model_state = torch.load(path + "fitting_E_state_dict_outres_" + str(self.out_res), map_location=torch.device('cpu'))
         self.enn.load_state_dict(model_state)
         self.neffnn.reset(path)
 
 class gen_En(nn.Module):
-    def __init__(self, modes, res, N, n0, C_EPSILON, dx, Knn):
+    def __init__(self, modes, out_res, N, n0, C_EPSILON, dx, Knn):
         super(gen_En, self).__init__()
         self.N = N
         self.n0 = n0
@@ -176,9 +176,9 @@ class gen_En(nn.Module):
         self.dx = dx
         self.Knn = Knn
         self.modes = modes
-        self.res = res
-        self.Ey_size = 2 * (Knn + 1) * res
-        self.total_size = (N + 2 * Knn + 1) * res
+        self.out_res = out_res
+        self.Ey_size = 2 * (Knn + 1) * out_res
+        self.total_size = (N + 2 * Knn + 1) * out_res
         self.register_buffer('En', torch.zeros((self.total_size,self.total_size), dtype= torch.complex64))
     def forward(self, hs, U, neff, Ey):
         '''
@@ -193,9 +193,9 @@ class gen_En(nn.Module):
             for j in range(self.N):
                 for m in range(self.modes):
                     temp_Ey = Ey[i * self.N + j, m]
-                    ci = int(i * self.res + (self.Knn + 1) * self.res)
-                    cj = int(j * self.res + (self.Knn + 1) * self.res)
-                    radius = int((self.Knn + 1) * self.res)
+                    ci = int(i * self.out_res + (self.Knn + 1) * self.out_res)
+                    cj = int(j * self.out_res + (self.Knn + 1) * self.out_res)
+                    radius = int((self.Knn + 1) * self.out_res)
                     self.En[ci - radius: ci + radius, cj - radius: cj + radius] += temp_Ey
         return self.En
         
@@ -243,7 +243,7 @@ class SCMT_Model(nn.Module):
     def __init__(self, prop_dis, Euler_steps, devs, GP, COUPLING, APPROX, Ni, k_row, N, layer_neff, layer_C, layer_K, layer_E):
         super(SCMT_Model, self).__init__()
         self.prop = prop_dis
-        total_size = (N + 2 * GP.Knn + 1) * GP.res
+        total_size = (N + 2 * GP.Knn + 1) * GP.out_res
         self.metalayer1 = Metalayer(Euler_steps, devs, GP, COUPLING, APPROX, Ni, k_row, N, layer_neff, layer_C, layer_K, layer_E)
         self.freelayer1 = freespace_layer(self.prop, GP.lam, total_size, GP.dx).to(devs[0])
     def forward(self, E0):

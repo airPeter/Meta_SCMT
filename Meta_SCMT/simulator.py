@@ -28,13 +28,15 @@ from .fitting_E_field_2D import Fitting_E_field_2D
 from .fitting_K_matrix_2D import Fitting_K_matrix_2D
 from .SCMT_2D import SCMT_2D
 class GP():
-    def __init__(self,dim, modes, period, res, wh, lam, n_sub, n_wg, h_min, h_max, dh, path = 'sim_cache/'):
+    def __init__(self,dim, modes, period, res, downsample_ratio, wh, lam, n_sub, n_wg, h_min, h_max, dh, path = 'sim_cache/'):
         self.dim = dim #dim = 1 or 2.
         self.modes = modes #number of modes with in a single waveguide. modes <= 2 is usually good enough.
         self.C_EPSILON = 3 * 8.85 * 10**-4 # C * EPSILON
         self.Knn = 2 #number of nearest neighbors for the C and K matrix.
         self.period = period
         self.res = res #resolution within one period
+        self.downsample_ratio = downsample_ratio
+        self.out_res = int(round(self.downsample_ratio * self.res))
         self.dx = self.period/self.res
         self.wh = wh #waveguide height
         self.lam = lam
@@ -80,7 +82,7 @@ class Sim():
             self.gen_modes = Gen_modes2D(self.GP)
             self.fitting_neffs = Fitting_neffs(self.GP.modes, self.gen_modes, self.GP.dh, self.GP.path)
             self.fftting_C = Fitting_C_matrix_2D(self.gen_modes, self.GP.modes, self.GP.res, self.GP.dh, self.GP.dx, self.GP.Knn, self.GP.path)
-            self.fftting_E = Fitting_E_field_2D(self.gen_modes, self.GP.modes, self.GP.res, self.GP.dh, self.GP.dx, self.GP.Knn, self.GP.path)
+            self.fftting_E = Fitting_E_field_2D(self.gen_modes, self.GP.modes, self.GP.out_res, self.GP.dh, self.GP.dx, self.GP.Knn, self.GP.path)
             self.fftting_K = Fitting_K_matrix_2D(self.gen_modes, self.GP.modes, self.GP.res, self.GP.dh, self.GP.dx, self.GP.Knn, self.GP.path,
                                                 self.GP.n_wg, self.GP.n0, self.GP.k, self.GP.C_EPSILON, self.GP.period)
             self.scmt = SCMT_2D(self.GP)

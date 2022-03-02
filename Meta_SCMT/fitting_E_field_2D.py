@@ -1,12 +1,12 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from .utils import Model, train
+from .utils import Model, train, resize_field2D
 
 class Fitting_E_field_2D():
-    def __init__(self, gen_modes, modes, res, dh, dx, Knn, path) -> None:
+    def __init__(self, gen_modes, modes, out_res, dh, dx, Knn, path) -> None:
         self.gen_modes = gen_modes
-        self.res = res
+        self.out_res = out_res
         self.dx = dx
         self.dh = dh
         self.Knn = Knn
@@ -18,11 +18,12 @@ class Fitting_E_field_2D():
         modes_lib = self.gen_modes.modes_lib
         if modes_lib == None:
             raise Exception("gen modes first!")
-        X, Y, size_Ey = gen_fitting_data(self.modes, modes_lib, self.dh)
+        out_size = 2 * (self.Knn + 1) * self.out_res
+        X, Y, size_Ey = gen_fitting_data(self.modes, modes_lib, self.dh, out_size)
         self.model = Model(1, Y.shape[-1], layers= layers, nodes = 128)
         batch_size = X.shape[0]
         Y_pred = train(self.model, X, Y, steps, lr, batch_size)
-        torch.save(self.model.state_dict(), self.path + "fitting_E_state_dict")
+        torch.save(self.model.state_dict(), self.path + "fitting_E_state_dict_outres_" + str(self.out_res))
         print("model saved.")
         if vis:
             indexs = np.random.randint(0, Y.shape[0], size = (3,))
@@ -44,7 +45,7 @@ class Fitting_E_field_2D():
                     plt.show()
         return None
     
-def gen_fitting_data(modes, modes_lib, dh):
+def gen_fitting_data(modes, modes_lib, dh, out_size):
     X = []
     Y = []
     for key in modes_lib.keys():
@@ -52,7 +53,9 @@ def gen_fitting_data(modes, modes_lib, dh):
         X.append(h)
         y = []
         for m in range(modes):
-            y.append(modes_lib[key][m]['Ey'])
+            Ey = modes_lib[key][m]['Ey']
+            Ey = resize_field2D(Ey, out_size)
+            y.append(Ey)
         Y.append(y)
     X = np.array(X)
     Y = np.array(Y)
