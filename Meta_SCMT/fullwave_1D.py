@@ -80,7 +80,7 @@ class Fullwave_1D():
         # Initialize simulation
         self.sim = td.Simulation(size=sim_size,
                             resolution=self.res,
-                            #structures=waveguides,
+                            structures=waveguides,
                             sources=[gaussian_beam],
                             monitors=[freq_mnt1, freq_mnt2],
                             run_time=run_time,

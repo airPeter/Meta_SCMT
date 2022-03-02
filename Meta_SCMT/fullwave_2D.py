@@ -13,15 +13,19 @@ class Fullwave_2D():
         self.sim = None
         
     def init_sim(self, prop_dis, N, hs, res = None, theta = 0):
+        '''
+        input:
+            hs: the 2d array of waveguides need to be simulated. shape [N, N]
+        '''
         warnings.warn("Fullwave is expensive and slow. Only do fullwave on small devices. And low resolution can be inaccurate.")
         if res == None:
             self.res = int(round(1 / self.GP.dh))
         else:
             self.res = res
         print("Fullwave resolution:", str(self.res))
-        self.out_res = self.GP.out_res
         self.N = N
         self.prop_dis = prop_dis
+        hs = hs.reshape(self.N, self.N)
         # Simulation domain size (in micron)
         z_size = self.GP.wh + 2 + prop_dis
         x_size = (N + 5) * self.GP.period
@@ -41,12 +45,15 @@ class Fullwave_2D():
         waveguides = []
         z_plane = -z_size/2 + 1
         X = (np.arange(N) - N//2) * self.GP.period
+        Y = X[::-1]
         positions = []
         for i in range(N):
-                width = hs[i]
-                x = X[i]
-                positions.append(float(x))
-                temp_wg = td.Box(center=[x, 0, z_plane + self.GP.wh/2], size=[width, y_size*2, self.GP.wh], material=material1)
+            for j in range(N):
+                width = hs[i, j]
+                x = X[j]
+                y = Y[i]
+                positions.append([float(x), float(y)])
+                temp_wg = td.Box(center=[x, y, z_plane + self.GP.wh/2], size=[width, width, self.GP.wh], material=material1)
                 waveguides.append(temp_wg)
         if self.GP.n_sub != 1:
             material2 = td.Medium(epsilon=self.GP.n_sub**2)
@@ -72,21 +79,23 @@ class Fullwave_2D():
             direction='forward',
             waist_radius=x_size * 10,
             pol_angle=np.pi/2) #S polarization.
-        #x-z plane monitor.
-        freq_mnt1 = td.FreqMonitor(center=[0, 0, 0], size=[x_size, 0, z_size], freqs=[fcen])
-        # focal plane monitor.
+        
+        freq_mnt1 = td.FreqMonitor(center=[0, 0, z_plane + self.GP.wh + 0.01], size=[x_size, y_size, 0], freqs=[fcen])
         freq_mnt2 = td.FreqMonitor(center=[0, 0, z_plane + self.GP.wh + prop_dis], size=[x_size, y_size, 0], freqs=[fcen])
+        freq_mnt3 = td.FreqMonitor(center=[0, 0, 0], size=[0, x_size, z_size], freqs=[fcen])
 
         # Initialize simulation
         self.sim = td.Simulation(size=sim_size,
                             resolution=self.res,
-                            #structures=waveguides,
+                            structures=waveguides,
                             sources=[gaussian_beam],
-                            monitors=[freq_mnt1, freq_mnt2],
+                            monitors=[freq_mnt1, freq_mnt2, freq_mnt3],
                             run_time=run_time,
                             pml_layers=pml_layers)    
-        _, ax = plt.subplots(1, 1, figsize=(6, 6))
-        self.sim.viz_mat_2D(normal='y', ax=ax)
+        _, ax = plt.subplots(1, 3, figsize=(12, 3))
+        self.sim.viz_mat_2D(normal='z', position=z_plane, ax=ax[0])
+        self.sim.viz_mat_2D(normal='y', ax=ax[1], monitor_alpha=0)
+        self.sim.viz_mat_2D(normal='x', ax=ax[2], source_alpha=0.9)
         plt.show()
         return None   
     
@@ -107,112 +116,89 @@ class Fullwave_2D():
         self.sim.load_results(data_path + self.task_name + '/monitor_data.hdf5')
         return None
     
-    def vis_monitor(self,path = None):
+    def vis_monitor(self,path = None, tidy3d_viz = True):
         if path:
             if self.sim == None:
                 raise Exception("init sim first, then you can download data.")
             self.sim.load_results(path + 'monitor_data.hdf5')
         monitors = self.sim.monitors
-        mdata = self.sim.data(monitors[0])
-        Ey_xz_raw = mdata['E'][1,:,0,:,0].T
+        if tidy3d_viz:
+            _, ax = plt.subplots(1, 3, figsize=(18, 6))
+            self.sim.viz_field_2D(monitors[0], ax=ax[0], cbar=True, comp='y', val='abs')
+            self.sim.viz_field_2D(monitors[1], ax=ax[1], cbar=True, comp='y', val='abs')
+            self.sim.viz_field_2D(monitors[2], ax=ax[2], cbar=True, comp='y', val='abs')
+        
         step1 = self.sim.grid.mesh_step[0]
-        phy_size_x = Ey_xz_raw.shape[1] * step1
-        phy_size_y = Ey_xz_raw.shape[0] * step1
-        index_near = int(round((1 + self.GP.wh)/step1))
-        index_far = int(round((1 + self.GP.wh + self.prop_dis)/step1))
-        Ey_near = Ey_xz_raw[index_near, :]
-        Ey_far = Ey_xz_raw[index_far, :]
-        num_steps2 = (2 * self.GP.Knn + 1 + self.N) * self.GP.res
-        data_near = resize_1d(Ey_near, step1, num_steps2)
-        data_far = resize_1d(Ey_far, step1, num_steps2)
+        step2 = self.GP.period / self.GP.out_res
+        mdata = self.sim.data(monitors[0])
+        Ey_near = mdata['E'][1,:,:,0,0]
+        Ey_near = resize_2d(Ey_near, step1, step2)
+        mdata = self.sim.data(monitors[1])
+        Ey_far = mdata['E'][1,:,:,0,0] 
+        Ey_far = resize_2d(Ey_far, step1, step2)      
+        phy_size_x = Ey_far.shape[1] * step2
+        phy_size_y = Ey_far.shape[0] * step2
         
-        plt.figure()
-        plt.imshow(np.abs(Ey_xz_raw), origin='lower', extent = (-phy_size_x/2, phy_size_x/2, -phy_size_y/2, phy_size_y/2))
-        plt.xlabel("Position [um]")
-        plt.ylabel("Position [um]")
-        plt.colorbar()
-        plt.show()
-        
-        fig, ax = plt.subplots(1, 2, figsize=(12, 6))
-        #self.sim.viz_field_2D(monitors[0], ax=ax[0], cbar=True, comp='y', val='abs')
-        ax[0].plot(data_near['x'], np.angle(data_near['Ey']), label = 'near field phase')
-        ax[0].set_xlabel("Position [um]")
-        ax[0].legend()
-        ax[1].plot(data_far['x'], np.abs(data_far['Ey'])**2, label = 'far field Intensity')
-        ax[1].set_xlabel("Position [um]")
-        ax[1].legend()
-        plt.show()
-        return Ey_xz_raw, data_near, data_far
+        I_far = np.abs(Ey_far)**2
+        show_field(Ey_near, phy_size_x, phy_size_y)
+        show_intensity(I_far, phy_size_x, phy_size_y)
+        return Ey_near, Ey_far
 
-    # def vis_monitor(self,path = None, return_data = False):
-    #     if path:
-    #         if self.sim == None:
-    #             raise Exception("init sim first, then you can download data.")
-    #         self.sim.load_results(path + 'monitor_data.hdf5')
-    #     monitors = self.sim.monitors
-    #     mdata = self.sim.data(monitors[0])
-    #     Ey_xz_plane = mdata['E'][1,:,0,:,0]
-    #     index_focal = int(round((1 + self.GP.wh + self.prop_dis) * self.res))
-    #     I_focal = np.abs(Ey_xz_plane[:,index_focal])**2
-    #     stride = int(round(self.res / self.out_res))
-    #     Ey_xz_plane = Ey_xz_plane[::stride, ::stride].T
-    #     px = 1/self.res * np.arange(I_focal.size)
-    #     I_focal = I_focal[::stride]
-    #     px = px[::stride]
-    #     fig, ax = plt.subplots(1, 2, figsize=(12, 6))
-    #     #self.sim.viz_field_2D(monitors[0], ax=ax[0], cbar=True, comp='y', val='abs')
-    #     plot1 = ax[0].imshow(np.abs(Ey_xz_plane))
-    #     plt.colorbar(plot1, ax = ax[0])
-    #     ax[0].set_title("field amplitude.")
-    #     ax[1].plot(px, I_focal)
-    #     ax[1].set_xlabel("Position [um]")
-    #     ax[1].set_ylabel("Intensity")
-    #     ax[1].set_title("Focal plane intensity.")
-    #     plt.show()
-    #     if return_data:
-    #         return px, Ey_xz_plane, I_focal
-    #     return None
-    
-# def resize_2d(field, step1, step2):
-#     '''
-#       tooooooooo slow!
-#     input:
-#         field 2D data needed to be resampled.
-#         step1, current step size.
-#         step2, output step size.
-#     output:
-#         a dict, that ['Ey'] , ['X'], ['Y'], data, and coordinate.
-#     '''
-#     phy_size_x = field.shape[1] * step1
-#     phy_size_y = field.shape[0] * step1
-    
-#     x = np.linspace(0, phy_size_x, num = field.shape[1])
-#     y = np.linspace(0, phy_size_y, num = field.shape[0])
-#     X, Y = np.meshgrid(x, y)
-#     f_real = interpolate.interp2d(X, Y, np.real(field), kind='linear')
-#     f_imag = interpolate.interp2d(X, Y, np.imag(field), kind='linear')
-    
-#     x = np.arange(0, phy_size_x, step2)
-#     y = np.arange(0, phy_size_y, step2)
-#     X, Y = np.meshgrid(x, y)
-#     out_real = f_real(X, Y)
-#     out_img = f_imag(X, Y)
-#     out_field = out_real + 1j * out_img
-#     out = {}
-#     out['Ey'] = out_field
-#     out['X'] = X
-#     out['Y'] = Y
-#     return out
+def show_field(E, phy_size_x, phy_size_y):
+    fig, ax = plt.subplots(1, 2, figsize=(12, 6))
+    plot0 = ax[0].imshow(np.angle(E), cmap = 'magma', origin='lower', extent = (-phy_size_x/2, phy_size_x/2, -phy_size_y/2, phy_size_y/2))
+    ax[0].set_xlabel("Position [um]")
+    ax[0].set_ylabel("Position [um]")
+    ax[0].set_title("Phase")
+    plt.colorbar(plot0, ax = ax[0])
+    plot0 = ax[0].imshow(np.angle(E), cmap = 'magma', origin='lower', extent = (-phy_size_x/2, phy_size_x/2, -phy_size_y/2, phy_size_y/2))
+    ax[1].set_xlabel("Position [um]")
+    ax[1].set_ylabel("Position [um]")
+    ax[1].set_title("Amplitude")
+    plt.colorbar(plot0, ax = ax[0])
+    plt.show()
+    return None
 
-def resize_1d(field, step1, num_steps2):
-    phy_size_x = field.shape[0] * step1
-    xp = np.linspace(-phy_size_x/2, phy_size_x/2, num = field.shape[0])
-    x = np.linspace(-phy_size_x/2, phy_size_x/2, num = num_steps2)
-    out_field = np.interp(x, xp, field)
-    out = {}
-    out['Ey'] = out_field
-    out['x'] = x
-    return out
+def show_intensity(I, phy_size_x, phy_size_y):
+    plt.figure()
+    plt.imshow(I, cmap = 'magma', origin='lower', extent = (-phy_size_x/2, phy_size_x/2, -phy_size_y/2, phy_size_y/2))
+    plt.xlabel("Position [um]")
+    plt.ylabel("Position [um]")
+    plt.colorbar()
+    plt.title("Intensity")
+    plt.show()
+    
+    
+def resize_2d(field, step1, step2):
+    '''
+      tooooooooo slow!
+    input:
+        field 2D data needed to be resampled.
+        step1, current step size.
+        step2, output step size.
+    output:
+        a dict, that ['Ey'] , ['X'], ['Y'], data, and coordinate.
+    '''
+    phy_size_x = field.shape[1] * step1
+    phy_size_y = field.shape[0] * step1
+    
+    x = np.linspace(0, phy_size_x, num = field.shape[1])
+    y = np.linspace(0, phy_size_y, num = field.shape[0])
+
+    f_real = interpolate.interp2d(x, y, np.real(field), kind='linear')
+    f_imag = interpolate.interp2d(x, y, np.imag(field), kind='linear')
+    
+    x = np.arange(0, phy_size_x, step2)
+    y = np.arange(0, phy_size_y, step2)
+    out_real = f_real(x, y)
+    out_img = f_imag(x, y)
+    out_field = out_real + 1j * out_img
+    # out = {}
+    # out['Ey'] = out_field
+    # out['x'] = x
+    # out['y'] = y
+    return out_field
+
 
 
     
