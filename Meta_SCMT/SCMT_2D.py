@@ -50,7 +50,7 @@ class SCMT_2D():
         if far_field:
             self.model = SCMT_Model(self.prop_dis, self.Euler_steps, self.devs, self.GP, self.COUPLING, self.APPROX, self.Ni, self.k_row, self.N, layer_neff, layer_C, layer_K, layer_E)
         else:
-            self.model = Metalayer(self.prop_dis, self.Euler_steps, self.devs, self.GP, self.COUPLING, self.APPROX, self.Ni, self.k_row, self.N, layer_neff, layer_C, layer_K, layer_E)
+            self.model = Metalayer(self.Euler_steps, self.devs, self.GP, self.COUPLING, self.APPROX, self.Ni, self.k_row, self.N, layer_neff, layer_C, layer_K, layer_E)
         self.init_paras(self.model, self.GP.path, init_hs)
         return None
     
@@ -159,7 +159,7 @@ class SCMT_2D():
             fig, axs = plt.subplots(1, 2, figsize = (12, 6))
             plot1 = axs[0].imshow(np.angle(E), cmap = 'magma')
             plt.colorbar(plot1, ax = axs[0])
-            plot2 = axs[1].imshow(np.amp(E), cmap = 'magma')
+            plot2 = axs[1].imshow(np.abs(E), cmap = 'magma')
             plt.colorbar(plot2, ax = axs[1])
             axs[0].set_title("Phase")
             axs[1].set_title("Amp")

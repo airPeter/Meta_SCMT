@@ -85,6 +85,7 @@ def train(model, X, Y, epochs, lr, batch_size):
         device = 'cuda'
     else:
         device = 'cpu'
+    print("using device: ", device)
     log_epochs = int(epochs // 10)
     model = model.to(device)
     dataset_train = SimpleDataset(X, Y, ToTensor())

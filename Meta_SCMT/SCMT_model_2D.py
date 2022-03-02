@@ -74,8 +74,10 @@ class Metalayer(torch.nn.Module):
             if self.APPROX == 0:
                 C_sparse = torch.sparse_coo_tensor(self.coo, C_stripped.view(-1,), (self.N**2, self.N**2))
                 C_sparse = C_sparse.coalesce()
-                C_inv = torch.inverse(C_sparse.to_dense())
-                A = C_inv @ (BC_sparse.to_dense() + K_sparse.to_dense())
+                C_dense = C_sparse.to_dense()
+                C_inv = torch.inverse(C_dense)
+                K_dense = K_sparse.to_dense()
+                A = C_inv @ (BC_sparse.to_dense() + K_dense)
                 P = torch.matrix_exp(1j * A * self.wh) #waveguide propagator
                 Uz = P @ U0
             else:
@@ -157,7 +159,7 @@ class gen_U0(nn.Module):
             Ey = Ey.view(self.N**2, self.modes, self.Ey_size, self.Ey_size)
             E_sum = torch.sum(Ey * self.E0_slice, dim= (-2, -1), keepdim= False) # shape: [N**2, modes]
             eta = (neff * self.n0) / (neff + self.n0) #shape [N**2, modes]
-            T = 2 * self.C_EPSILON * eta * E_sum * self.dx
+            T = 2 * self.C_EPSILON * eta * E_sum * self.dx**2
             T = T.view(-1,)
         return Ey, T
     def reset(self, path):
