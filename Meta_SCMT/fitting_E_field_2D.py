@@ -14,7 +14,7 @@ class Fitting_E_field_2D():
         self.model = None
         self.path = path 
         
-    def fit(self, layers = 4, steps = 10000, lr = 0.001, vis = True):
+    def fit(self, layers = 4, steps = 10000, lr = 0.001, vis = True, save_fig = False):
         modes_lib = self.gen_modes.modes_lib
         if modes_lib == None:
             raise Exception("gen modes first!")
@@ -42,7 +42,10 @@ class Fitting_E_field_2D():
                     plot1 = axs[1].imshow(np.real(Ey_pred))
                     axs[1].set_title(L)
                     plt.colorbar(plot1, ax = axs[1])
-                    plt.show()
+                    if not save_fig:
+                        plt.show()
+                    else:
+                        plt.savefig(self.path + "fit_Ey_" + "idx:" + str(idx) + "mode:" + str(mode) + ".png")
         return None
     
 def gen_fitting_data(modes, modes_lib, dh, out_size):

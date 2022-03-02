@@ -28,7 +28,7 @@ class Fitting_K_matrix_2D():
         self.k = k
         self.C_EPSILON = C_EPSILON
         
-    def fit(self, layers = 4, steps = 1000, lr = 0.001, vis = True, load = True):
+    def fit(self, layers = 4, steps = 1000, lr = 0.001, vis = True, load = True, save_fig = False):
         X, Y = self.gen_fitting_data(load)
         self.model = Model(4, self.channels, layers= layers, nodes = 256)
         batch_size = 512
@@ -48,7 +48,10 @@ class Fitting_K_matrix_2D():
                     plt.legend()
                 plt.xlabel("vary widths" + "dis:" + str(dis))
                 plt.ylabel("Kij")
-                plt.show()
+                if not save_fig:
+                    plt.show()
+                else:
+                    plt.savefig(self.path + "fit_K_" + "vary widths" + "dis:" + str(dis)+ ".png")
         return None
     
     def gen_fitting_data(self,load):

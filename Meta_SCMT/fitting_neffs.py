@@ -21,7 +21,7 @@ class Fitting_neffs():
         self.dh = dh
         self.path = path
         
-    def fit(self, layers = 2, steps = 10000, lr = 0.001, vis = True):
+    def fit(self, layers = 2, steps = 10000, lr = 0.001, vis = True, save_fig = False):
         self.model = Model(in_size = 1, out_size = self.modes, layers = layers, nodes = 128)
         modes_lib = self.gen_modes.modes_lib
         if modes_lib == None:
@@ -41,7 +41,10 @@ class Fitting_neffs():
                 plt.legend()
             plt.xlabel("widths [um]")
             plt.ylabel("neffs")
-            plt.show()
+            if not save_fig:
+                plt.show()
+            else:
+                plt.savefig(self.path + "fit_neffs.png")
 
     def apply(self, X):
         '''
