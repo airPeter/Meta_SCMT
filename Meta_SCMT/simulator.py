@@ -11,6 +11,7 @@
         the forward and backward are implemented using pytorch.
         the number of waveguide for one side is N, for 1D, number of waveguides in metasurface is N; for 2D, N^2.
         the problem size is propotional to total_num_waveguides^3 * modes_within_each_waveguide^2.'''
+import imp
 import numpy as np
 import os
 import warnings
@@ -28,7 +29,7 @@ from .fitting_E_field_2D import Fitting_E_field_2D
 from .fitting_K_matrix_2D import Fitting_K_matrix_2D
 from .SCMT_2D import SCMT_2D
 from .fullwave_2D import Fullwave_2D
-
+from .PBA_design import PBA
 class GP():
     def __init__(self,dim, modes, period, res, downsample_ratio, wh, lam, n_sub, n_wg, h_min, h_max, dh, path = 'sim_cache/'):
         self.dim = dim #dim = 1 or 2.
@@ -89,3 +90,4 @@ class Sim():
                                                 self.GP.n_wg, self.GP.n0, self.GP.k, self.GP.C_EPSILON, self.GP.period)
             self.scmt = SCMT_2D(self.GP)
             self.fullwave = Fullwave_2D(self.GP)
+            self.PBA = PBA(self.GP)

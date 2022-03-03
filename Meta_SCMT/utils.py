@@ -4,6 +4,14 @@ import torch
 from torch.utils.data import DataLoader,Dataset
 import cv2
 
+def lens_2D(total_size, dx, focal_lens, k):
+    x = (np.arange(total_size) - (total_size - 1)/2) * dx
+    y = x.copy()
+    X, Y = np.meshgrid(x, y)
+    #phase = k * (r**2 - X**2 - Y**2)/(2 * focal_lens)
+    phase = k * (focal_lens - np.sqrt(X**2 + Y**2 + focal_lens**2))
+    return x , phase
+
 def fourier_conv(signal: torch.Tensor, f_kernel: torch.Tensor) -> torch.Tensor:
     '''
         args:
