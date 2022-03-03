@@ -254,7 +254,19 @@ class SCMT_Model(nn.Module):
         return If
     def reset(self, path):
         self.metalayer1.reset(path)
-           
+
+class Ideal_model(nn.Module):
+    def __init__(self, prop_dis, GP, total_size):
+        super(Ideal_model, self).__init__()
+        self.prop = prop_dis
+        self.phase = torch.nn.Parameter(torch.empty((total_size, total_size), dtype = torch.float))
+        self.freelayer1 = freespace_layer(self.prop, GP.lam, total_size, GP.period / GP.out_res)
+    def forward(self, E0):
+        E = E0 * torch.exp(1j * self.phase)
+        Ef = self.freelayer1(E)
+        If = torch.abs(Ef)**2
+        return If
+      
 class freespace_layer(nn.Module):
     def __init__(self, prop, lam, total_size, dx):
         super(freespace_layer, self).__init__()
@@ -279,6 +291,12 @@ def propagator(prop, lam, total_size, dx):
     y = x.copy()
     coord_x, coord_y = np.meshgrid(x,y, sparse = False)
     G = W(coord_x, coord_y, prop, lam)
+    #solid angle Sigma = integral(integral(sin(theta))dthtea)dphi
+    theta = np.arctan(total_size * dx/prop)
+    Sigma = 2 * np.pi * (1 - np.cos(theta))
+    G_norm = (np.abs(G)**2).sum() * 4 * np.pi / Sigma 
+    print("Free space energy conservation normalization G_norm:", str(G_norm))
+    G = G / G_norm
     return G
 
 def gen_f_kernel(prop, lam, total_size, dx):

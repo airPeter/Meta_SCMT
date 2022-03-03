@@ -30,6 +30,7 @@ from .fitting_K_matrix_2D import Fitting_K_matrix_2D
 from .SCMT_2D import SCMT_2D
 from .fullwave_2D import Fullwave_2D
 from .PBA_design import PBA
+from .ideal_meta import Ideal_meta
 class GP():
     def __init__(self,dim, modes, period, res, downsample_ratio, wh, lam, n_sub, n_wg, h_min, h_max, dh, path = 'sim_cache/'):
         self.dim = dim #dim = 1 or 2.
@@ -91,3 +92,4 @@ class Sim():
             self.scmt = SCMT_2D(self.GP)
             self.fullwave = Fullwave_2D(self.GP)
             self.PBA = PBA(self.GP)
+            self.ideal_meta = Ideal_meta(self.GP)

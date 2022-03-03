@@ -1,5 +1,6 @@
 '''
     design metasurface by periodic boundary approximation.
+    need to do: add optimize method.
 '''
 # standard python imports
 import numpy as np
