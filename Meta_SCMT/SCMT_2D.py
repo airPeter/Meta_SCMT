@@ -94,7 +94,7 @@ class SCMT_2D():
         radius = self.N * self.GP.period/2
         NA =  radius/ np.sqrt(radius**2 + self.prop_dis**2)
         target_sigma = self.GP.lam / (2 * NA) / (self.GP.period / self.GP.out_res)
-        print(f"the numerical aperture: {NA:2f}, target spot size (number of points): {target_sigma:2f}")
+        print(f"the numerical aperture: {NA:.2f}, target spot size (number of points): {target_sigma:.2f}")
         center = int(round(self.total_size//2))
         circle = self.circle_mask(center, target_sigma)
         circle = torch.tensor(circle, dtype = torch.float)

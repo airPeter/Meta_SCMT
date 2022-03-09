@@ -295,7 +295,7 @@ def propagator(prop, lam, total_size, dx):
     theta = np.arctan(total_size * dx/prop)
     Sigma = 2 * np.pi * (1 - np.cos(theta))
     G_norm = (np.abs(G)**2).sum() * 4 * np.pi / Sigma 
-    print(f"Free space energy conservation normalization G_norm: {G_norm:2f}")
+    print(f"Free space energy conservation normalization G_norm: {G_norm:.2f}")
     G = G / G_norm
     return G
 
