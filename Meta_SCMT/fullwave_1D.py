@@ -1,8 +1,6 @@
 # standard python imports
 import numpy as np
 import matplotlib.pyplot as plt
-import h5py
-from scipy import interpolate
 # tidy3D import
 import tidy3d as td
 from tidy3d import web

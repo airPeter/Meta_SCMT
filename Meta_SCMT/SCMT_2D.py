@@ -92,7 +92,7 @@ class SCMT_2D():
         radius = self.N * self.GP.period/2
         NA =  radius/ np.sqrt(radius**2 + self.prop_dis**2)
         target_sigma = self.GP.lam / (2 * NA) / (self.GP.period / self.GP.out_res)
-        print("the numerical aperture: ", NA, "target spot size (number of points):", target_sigma)
+        print(f"the numerical aperture: {NA:5f}, target spot size (number of points): {target_sigma:5f}")
         center = int(round(self.total_size//2))
         for step in tqdm(range(steps + 1)):
             # Compute prediction error

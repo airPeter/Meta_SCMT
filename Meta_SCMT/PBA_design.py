@@ -83,8 +83,8 @@ class PBA():
             plt.plot(widths, phases)
             plt.xlabel("Waveguide width [um]")
             plt.ylabel("Phase")
+            plt.savefig(self.GP.path + "PBA_phase_vs_width.png")
             plt.show()
-            plt.savefig(self.path + "PBA_phase_vs_width.png")
         L = phases.shape[0]
         width_phase_map = np.zeros((2, L))
         width_phase_map[0] = widths

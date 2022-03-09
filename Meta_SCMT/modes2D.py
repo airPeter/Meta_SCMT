@@ -18,7 +18,7 @@ import warnings
 class Gen_modes2D():
     def __init__(self, GP):
         self.GP = GP
-        self.H = np.arange(GP.h_min, GP.h_max + GP.dh, GP.dh)
+        self.H = np.arange(GP.h_min, GP.h_max + GP.dh/2, GP.dh)
         self.modes_lib = None
         self.batch = None
         self.batch_path = None
@@ -36,6 +36,9 @@ class Gen_modes2D():
         print("total keys: ", len(self.modes_lib.keys()))
         print("number of non zero modes: ", cnts)
         if cnts[0] != len(self.modes_lib.keys()):
+        #     warnings.warn("better make h_min larger, because some h that is too small to allow any mode to propagate.\n \
+        #         To do this, rerun gen_modes.gen(batch_path = batch_path, load = False, offset = offset).\n  \
+        #             offset is the number of sims you want to skip. Eg, old h_min = 0.12, new h_min = 0.15, dh = 0.01, then offset should be 3.")
             warnings.warn("better make h_min larger, because some h that is too small to allow any mode to propagate.")
         return None
 
@@ -86,11 +89,17 @@ class Gen_modes2D():
             modes_lib = modes_lib.item()
             print("modes lib load sucessed.")
             #consistency check
-            total_hs = (self.GP.h_max - self.GP.h_min + self.GP.dh)//self.GP.dh + 1
+            total_hs = (self.GP.h_max - self.GP.h_min + self.GP.dh/2)//self.GP.dh
             load_total_hs = len(modes_lib.keys())
             if total_hs != load_total_hs:
-                print("expected total waveguides:" + str(total_hs) + "loaded:" + str(load_total_hs))
-                #raise Exception('You indeed change the physical setup without regenerate the modes!')
+                warnings.warn("expected total waveguides:" + str(total_hs) + "loaded:" + str(load_total_hs))
+                print("remove not needed keys...")
+                keys = modes_lib.keys()
+                for key in list(keys):
+                    h = key * self.GP.dh
+                    if h < self.GP.h_min or h > self.GP.h_max:
+                        del modes_lib[key]
+                print("key removed.")    
             self.modes_lib = modes_lib
         else:
             if batch_path:

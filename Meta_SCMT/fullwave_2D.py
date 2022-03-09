@@ -1,12 +1,14 @@
 # standard python imports
 import numpy as np
 import matplotlib.pyplot as plt
-import h5py
 from scipy import interpolate
 # tidy3D import
 import tidy3d as td
 from tidy3d import web
 import warnings
+from .SCMT_model_2D import freespace_layer
+import torch
+
 class Fullwave_2D():
     def __init__(self, GP) -> None:
         self.GP =GP
@@ -17,7 +19,7 @@ class Fullwave_2D():
         input:
             hs: the 2d array of waveguides need to be simulated. shape [N, N]
         '''
-        warnings.warn("Fullwave is expensive and slow. Only do fullwave on small devices. And low resolution can be inaccurate.")
+        warnings.warn("Fullwave is expensive and slow. You can set the prop_dis = 0, and use near_to_far to get the far field. Only do fullwave on small devices. And low resolution can be inaccurate.")
         if res == None:
             self.res = int(round(1 / self.GP.dh))
         else:
@@ -79,17 +81,18 @@ class Fullwave_2D():
             direction='forward',
             waist_radius=x_size * 10,
             pol_angle=np.pi/2) #S polarization.
-        
-        freq_mnt1 = td.FreqMonitor(center=[0, 0, z_plane + self.GP.wh + 0.01], size=[x_size, y_size, 0], freqs=[fcen])
-        freq_mnt2 = td.FreqMonitor(center=[0, 0, z_plane + self.GP.wh + prop_dis], size=[x_size, y_size, 0], freqs=[fcen])
-        freq_mnt3 = td.FreqMonitor(center=[0, 0, 0], size=[0, x_size, z_size], freqs=[fcen])
+        self.monitors = []
+        self.monitors.append(td.FreqMonitor(center=[0, 0, z_plane + self.GP.wh + self.GP.lam/2], size=[x_size, y_size, 0], freqs=[fcen]))
+        if prop_dis != 0:
+            self.monitors.append(td.FreqMonitor(center=[0, 0, z_plane + self.GP.wh + prop_dis], size=[x_size, y_size, 0], freqs=[fcen]))
+        self.monitors.append(td.FreqMonitor(center=[0, 0, 0], size=[0, x_size, z_size], freqs=[fcen]))
 
         # Initialize simulation
         self.sim = td.Simulation(size=sim_size,
                             resolution=self.res,
                             structures=waveguides,
                             sources=[gaussian_beam],
-                            monitors=[freq_mnt1, freq_mnt2, freq_mnt3],
+                            monitors=self.monitors,
                             run_time=run_time,
                             pml_layers=pml_layers)    
         _, ax = plt.subplots(1, 3, figsize=(12, 3))
@@ -116,6 +119,15 @@ class Fullwave_2D():
         self.sim.load_results(data_path + self.task_name + '/monitor_data.hdf5')
         return None
     
+    def near_to_far(self, En, prop_dis):
+        dx = self.GP.period / self.GP.out_res
+        freelayer1 = freespace_layer(prop_dis - self.GP.lam/2, self.GP.lam, En.shape[0], dx)
+        En = torch.tensor(En, dtype = torch.complex64)
+        with torch.no_grad():
+            Ef = freelayer1(En)
+        out_Ef = Ef.cpu().numpy()
+        return out_Ef
+    
     def vis_monitor(self,path = None, tidy3d_viz = True):
         if path:
             if self.sim == None:
@@ -126,23 +138,26 @@ class Fullwave_2D():
             _, ax = plt.subplots(1, 3, figsize=(18, 6))
             self.sim.viz_field_2D(monitors[0], ax=ax[0], cbar=True, comp='y', val='abs')
             self.sim.viz_field_2D(monitors[1], ax=ax[1], cbar=True, comp='y', val='abs')
-            self.sim.viz_field_2D(monitors[2], ax=ax[2], cbar=True, comp='y', val='abs')
-        
+            if len(monitors) == 3:
+                self.sim.viz_field_2D(monitors[2], ax=ax[2], cbar=True, comp='y', val='abs')
         step1 = self.sim.grid.mesh_step[0]
         step2 = self.GP.period / self.GP.out_res
         mdata = self.sim.data(monitors[0])
         Ey_near = mdata['E'][1,:,:,0,0]
         Ey_near = resize_2d(Ey_near, step1, step2)
-        mdata = self.sim.data(monitors[1])
-        Ey_far = mdata['E'][1,:,:,0,0] 
-        Ey_far = resize_2d(Ey_far, step1, step2)      
-        phy_size_x = Ey_far.shape[1] * step2
-        phy_size_y = Ey_far.shape[0] * step2
-        
-        I_far = np.abs(Ey_far)**2
+        phy_size_x = Ey_near.shape[1] * step2
+        phy_size_y = Ey_near.shape[0] * step2
         show_field(Ey_near, phy_size_x, phy_size_y)
-        show_intensity(I_far, phy_size_x, phy_size_y)
+        if len(monitors) == 3:
+            mdata = self.sim.data(monitors[1])
+            Ey_far = mdata['E'][1,:,:,0,0] 
+            Ey_far = resize_2d(Ey_far, step1, step2) 
+            I_far = np.abs(Ey_far)**2
+            show_intensity(I_far, phy_size_x, phy_size_y)     
+        else:
+            Ey_far = None
         return Ey_near, Ey_far
+ 
 
 def show_field(E, phy_size_x, phy_size_y):
     fig, ax = plt.subplots(1, 2, figsize=(12, 6))
