@@ -3,15 +3,11 @@ support modes <=2, but modes = 2 not tested.
 Assume that the mode field Ey, Hx only has real part. imagary part is zero.
 '''
 import warnings
-from cv2 import exp
 import numpy as np
 from .utils import h2index
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 import os
-# tidy3D import
-import tidy3d as td
-from tidy3d import web
 from tqdm import tqdm
 import warnings
 
@@ -58,6 +54,8 @@ class Gen_modes2D():
         plt.show()
     
     def upload(self, batch_path, base_dir):
+        # tidy3D import
+        from tidy3d import web
         GP = self.GP
         # submit all jobs
         step = GP.period/GP.res
@@ -68,6 +66,8 @@ class Gen_modes2D():
         self.batch = batch
         return None
     def monitor(self, batch_path = None):
+        # tidy3D import
+        from tidy3d import web
         if batch_path:
             batch_path = self.GP.path + batch_path
             if os.path.exists(batch_path):
@@ -81,6 +81,8 @@ class Gen_modes2D():
         '''
             generate a dict that for each unique h, and mode, the neff, Ey, Hx are included.
         '''
+        # tidy3D import
+        from tidy3d import web
         load_path = os.path.join(self.GP.path, "modes_lib.npy")
         if load:
             if not os.path.exists(load_path):
@@ -214,6 +216,8 @@ class Gen_modes2D():
         return None
     
 def create_sim(width, wavelength, n1, resolution, period, Knn, modes):
+    # tidy3D import
+    import tidy3d as td
     # Unit length is micron.
     wg_size = width
     # Free-space wavelength (in um) and frequency (in Hz)

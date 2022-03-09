@@ -51,7 +51,7 @@ def h2index(h, dh):
 def gen_decay_rate(total_steps, decay_steps):
     expected_lr_decay = 0.1
     decay_rate = np.exp(np.log(expected_lr_decay)/(total_steps/decay_steps))
-    print('decay_rate: ', decay_rate)
+    print(f"decay_rate: {decay_rate:5f}")
     return decay_rate
 
 class Model(torch.nn.Module):

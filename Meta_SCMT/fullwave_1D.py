@@ -1,9 +1,6 @@
 # standard python imports
 import numpy as np
 import matplotlib.pyplot as plt
-# tidy3D import
-import tidy3d as td
-from tidy3d import web
 import warnings
 class Fullwave_1D():
     def __init__(self, GP) -> None:
@@ -11,6 +8,8 @@ class Fullwave_1D():
         self.sim = None
         
     def init_sim(self, prop_dis, N, hs, res = None, theta = 0):
+        # tidy3D import
+        import tidy3d as td
         warnings.warn("Fullwave is expensive and slow. Only do fullwave on small devices. And low resolution can be inaccurate.")
         if res == None:
             self.res = int(round(1 / self.GP.dh))
@@ -89,12 +88,16 @@ class Fullwave_1D():
         return None   
     
     def upload(self, task_name):
+        # tidy3D import
+        from tidy3d import web
         self.task_name = task_name     
         self.project = web.new_project(self.sim.export(), task_name=task_name)
         web.monitor_project(self.project['taskId'])
         return None
     
     def download(self, data_path):
+        # tidy3D import
+        from tidy3d import web
         web.download_results(self.project['taskId'], target_folder=data_path + self.task_name)
         # Show the output of the log file
         with open(data_path + self.task_name + "/tidy3d.log") as f:

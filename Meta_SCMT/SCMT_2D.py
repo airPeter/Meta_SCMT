@@ -8,6 +8,8 @@ from torch.utils.tensorboard import SummaryWriter
 from .utils import gen_decay_rate
 from tqdm import tqdm
 from .loss_lib_2D import max_center
+import cv2
+
 class SCMT_2D():
     def __init__(self, GP):
         self.GP = GP
@@ -94,10 +96,14 @@ class SCMT_2D():
         target_sigma = self.GP.lam / (2 * NA) / (self.GP.period / self.GP.out_res)
         print(f"the numerical aperture: {NA:5f}, target spot size (number of points): {target_sigma:5f}")
         center = int(round(self.total_size//2))
+        circle = self.circle_mask(center, target_sigma)
+        circle = torch.tensor(circle, dtype = torch.float)
+        circle = circle.to(self.devs[0])
         for step in tqdm(range(steps + 1)):
             # Compute prediction error
             If = self.model(E0)
-            loss = max_center(If, center, target_sigma)
+            #loss = max_center(If, center, target_sigma)
+            loss = - (If * circle).sum()
             # Backpropagation
             optimizer.zero_grad()
             loss.backward()
@@ -127,6 +133,12 @@ class SCMT_2D():
         print('parameters saved in.', out_path)
         return None
 
+    def circle_mask(self,center, sigma):
+        radius = sigma//2 + 1
+        circle = np.zeros((self.total_size, self.total_size))
+        circle = cv2.circle(circle, (center, center), radius, 1, -1)
+        return circle
+    
     def init_paras(self, model, cache_path, init_hs = None):
         model.reset(cache_path)
         if init_hs is None:

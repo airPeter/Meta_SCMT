@@ -11,7 +11,6 @@
         the forward and backward are implemented using pytorch.
         the number of waveguide for one side is N, for 1D, number of waveguides in metasurface is N; for 2D, N^2.
         the problem size is propotional to total_num_waveguides^3 * modes_within_each_waveguide^2.'''
-import imp
 import numpy as np
 import os
 import warnings
