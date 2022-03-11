@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from sympy import minimum
 from .SCMT_model_2D import Metalayer, SCMT_Model
 import torch
 from torch import optim
@@ -187,7 +188,13 @@ def plot_hs(out_hs, N):
     return fig
 
 def plot_If(If):
-    fig = plt.figure()
-    plt.imshow(If, cmap = 'magma')
-    plt.colorbar()
+    size = If.shape[0]
+    c = size//2
+    r = np.minimum(c, 60)
+    If_c = If[c-r:c+r, c-r:c+r]
+    fig, axs = plt.subplots(1, 2, figsize = (12, 6))
+    plot1 = axs[0].imshow(If, cmap = 'magma')
+    plt.colorbar(plot1, ax = axs[0])
+    plot2 = axs[1].imshow(If_c, cmap = 'magma')
+    plt.colorbar(plot2, ax = axs[1])
     return fig
