@@ -115,15 +115,19 @@ class Fullwave_2D():
         web.monitor_project(self.project['taskId'])
         return None
     
-    def download(self, data_path):
+    def download(self, data_path, taskId = None, task_name = None):
         # tidy3D lazy import
         from tidy3d import web
-        web.download_results(self.project['taskId'], target_folder=data_path + self.task_name)
+        if taskId:
+            self.task_name = task_name
+            web.download_results(taskId, target_folder=data_path + self.task_name)
+        else:
+            web.download_results(self.project['taskId'], target_folder=data_path + self.task_name)
         # Show the output of the log file
         with open(data_path + self.task_name + "/tidy3d.log") as f:
             print(f.read())
         if self.sim == None:
-            raise Exception("init sim first, then you can download data.")
+            raise Exception("self.sim is None.")
             #self.sim = td.Simulation.import_json(data_path + self.task_name + "/simulation.json")
         self.sim.load_results(data_path + self.task_name + '/monitor_data.hdf5')
         return None

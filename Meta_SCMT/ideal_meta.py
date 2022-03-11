@@ -12,11 +12,6 @@ class Ideal_meta():
         self.GP = GP
         self.model = None
         self.total_size = None
-        if torch.cuda.is_available():
-            self.device = 'cuda'
-        else:
-            self.device = 'cpu'
-        print("using device: ", self.device)
         
     def model_init(self,N, prop_dis, init_phase = None, lens = False):
         self.total_size = (N + 2 * self.GP.Knn + 1) * self.GP.out_res
@@ -31,6 +26,11 @@ class Ideal_meta():
         print('Model initialized.')
 
     def forward(self, E0 = None, theta = 0, vis = True):
+        if torch.cuda.is_available():
+            self.device = 'cuda'
+        else:
+            self.device = 'cpu'
+        print("using device: ", self.device)
         if E0 == None:
             x = np.arange(self.total_size) * self.dx
             y = x.copy()

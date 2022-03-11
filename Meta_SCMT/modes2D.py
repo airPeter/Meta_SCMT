@@ -18,6 +18,7 @@ class Gen_modes2D():
         self.modes_lib = None
         self.batch = None
         self.batch_path = None
+        self.base_dir = None
         if self.GP.modes > 2:
             raise Exception("gen modes 2D only support modes <= 2.")
     def count_modes(self,):
@@ -64,6 +65,7 @@ class Gen_modes2D():
         batch = web.Batch(sims, base_dir=GP.path + base_dir)
         batch.save(GP.path + batch_path)
         self.batch = batch
+        self.base_dir = base_dir
         return None
     def monitor(self, batch_path = None):
         # tidy3D import
@@ -77,11 +79,12 @@ class Gen_modes2D():
         self.batch.monitor()
         return None
     
-    def gen(self,load = False, batch_path = None, offset = None):
+    def gen(self,load = False, batch_path = None, offset = None, results_path = None):
         '''
             generate a dict that for each unique h, and mode, the neff, Ey, Hx are included.
         '''
         # tidy3D import
+        import tidy3d as td
         from tidy3d import web
         load_path = os.path.join(self.GP.path, "modes_lib.npy")
         if load:
@@ -110,7 +113,15 @@ class Gen_modes2D():
             GP = self.GP
             # get results from all jobs
             warnings.warn("only load the results once you monitor that the simulation run on server is done.")
-            sims_loaded = self.batch.load_results()
+            if results_path and batch_path:
+                list_ids = open(batch_path,'r').read().splitlines()
+                sims_loaded = []
+                for id in list_ids:
+                    tmp_sim = td.Simulation.import_json(results_path + id + "/simulation.json")
+                    tmp_sim.load_results(results_path + id +'/monitor_data.hdf5')
+                    sims_loaded.append(tmp_sim)
+            else:
+                sims_loaded = self.batch.load_results()
             none_sims = []
             for i, sim in enumerate(sims_loaded):
                 if sim == None:

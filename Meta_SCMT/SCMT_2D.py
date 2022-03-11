@@ -45,6 +45,7 @@ class SCMT_2D():
             self.devs = ["cuda"] if torch.cuda.is_available() else ["cpu"]
         else:
             self.devs = devs
+        print("Optimizing by devs:", str(self.devs))
         if Euler_steps == None:
             self.Euler_steps = 1000
         else:
