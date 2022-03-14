@@ -4,6 +4,16 @@ import torch
 from torch.utils.data import DataLoader,Dataset
 import cv2
 
+def opt_phase_offset(p1, p2):
+    dis = np.inf
+    opt_p = 0
+    for offset in np.arange(0, 2 * np.pi, 0.01):
+        p_off = (p1 + offset) % (2 * np.pi)  - np.pi
+        if np.sum(np.abs(p_off - p2)) < dis:
+            dis = np.sum(np.abs(p_off - p2))
+            opt_p = offset
+    return opt_p
+
 def lens_2D(total_size, dx, focal_lens, k):
     x = (np.arange(total_size) - (total_size - 1)/2) * dx
     y = x.copy()

@@ -24,7 +24,7 @@ class Fitting_neffs():
     def fit(self, layers = 2, steps = 10000, lr = 0.001, vis = True, save_fig = False):
         self.model = Model(in_size = 1, out_size = self.modes, layers = layers, nodes = 128)
         modes_lib = self.gen_modes.modes_lib
-        if modes_lib == None:
+        if modes_lib is None:
             raise Exception("gen modes first!")
         widths, neffs= gen_fitting_data(self.modes, modes_lib, self.dh)
         batch_size = widths.size
@@ -51,7 +51,7 @@ class Fitting_neffs():
             input: waveguides widths, type: numpy.
             output: neffs for each waveguides and modes. column 0 store mode 0, col 1 store mode 1 ...
         '''
-        if self.model == None:
+        if self.model is None:
             print("fit the model first!")
         else:
             self.model = self.model.to('cpu')
@@ -72,7 +72,7 @@ class Fitting_neffs():
         self.model = LinearModel(self.modes, order)
         self.model = self.model.to(device)
         modes_lib = self.gen_modes.modes_lib
-        if modes_lib == None:
+        if modes_lib is None:
             raise Exception("gen modes first!")
         widths, neffs, X, Y = gen_polyfitting_data(self.modes, modes_lib, order, self.dh)
         X = torch.tensor(X, dtype = torch.float, device= device)

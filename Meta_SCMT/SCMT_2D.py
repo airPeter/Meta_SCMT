@@ -42,7 +42,7 @@ class SCMT_2D():
             self.k_row = k_row
         self.APPROX = APPROX
         self.COUPLING = COUPLING
-        if devs == None:
+        if devs is None:
             self.devs = ["cuda"] if torch.cuda.is_available() else ["cpu"]
         else:
             self.devs = devs

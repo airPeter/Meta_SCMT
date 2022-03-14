@@ -110,7 +110,7 @@ class Fullwave_1D():
     
     def vis_monitor(self,path = None):
         if path:
-            if self.sim == None:
+            if self.sim is None:
                 raise Exception("init sim first, then you can download data.")
             self.sim.load_results(path + 'monitor_data.hdf5')
         monitors = self.sim.monitors

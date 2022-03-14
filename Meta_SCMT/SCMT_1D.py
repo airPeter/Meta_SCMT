@@ -164,7 +164,7 @@ def plot_If(If, target_If = None):
     fig = plt.figure()
     plt.plot(out_If, label = 'output')
     #print('sum of intensity:', out_If.sum())
-    if target_If != None:
+    if not (target_If is None):
         plt.plot(target_If, label = 'target')
     plt.legend()
     #plt.ylabel('intensity normalized by max')

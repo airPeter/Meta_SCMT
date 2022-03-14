@@ -6,7 +6,8 @@ import warnings
 from .SCMT_model_2D import freespace_layer
 import torch
 from tqdm import tqdm
-
+from .cmap import paper_cmap
+from .ideal_meta import Ideal_meta
 class Fullwave_2D():
     def __init__(self, GP) -> None:
         self.GP =GP
@@ -27,11 +28,19 @@ class Fullwave_2D():
             self.res = res
         print("Fullwave resolution:", str(self.res))
         self.N = N
+        self.dl = 1 / self.res
         self.prop_dis = prop_dis
         hs = hs.reshape(self.N, self.N)
         # Simulation domain size (in micron)
-        z_size = self.GP.wh + 2 + prop_dis
-        x_size = (N + 5) * self.GP.period
+        spacing = 1 * self.GP.lam
+        z_size = self.GP.wh + 2 * spacing + prop_dis * 1.1
+        x_size = (N) * self.GP.period
+        self.x_size = x_size
+        xh = x_size / 2
+        NA = np.sin(xh / np.sqrt(xh**2 + prop_dis**2))
+        print(f"numerical aperture: {NA:.2f}")
+        self.min_focal_spot = self.GP.lam / 2 / NA
+        self.efficiency_length = 6 * self.min_focal_spot
         y_size = x_size
         sim_size = [x_size, y_size, z_size]
         # Central frequency and bandwidth of pulsed excitation, in Hz
@@ -46,11 +55,15 @@ class Fullwave_2D():
         # Lossless dielectric
         material1 = td.Medium(epsilon=self.GP.n_wg**2)
         waveguides = []
-        z_plane = -z_size/2 + 1
-        X = (np.arange(N) - N//2) * self.GP.period
+        z_plane = -z_size/2 + spacing
+        X = (np.arange(N) - N/2) * self.GP.period + self.GP.period/2
         Y = X[::-1]
         positions = []
         if not empty:
+            if self.GP.n_sub != 1:
+                material2 = td.Medium(epsilon=self.GP.n_sub**2)
+                sub = td.Box(center=[0, 0, -z_size + spacing], size=[td.inf, td.inf, z_size], material=material2)
+                waveguides.append(sub)
             for i in range(N):
                 for j in range(N):
                     width = hs[i, j]
@@ -59,17 +72,13 @@ class Fullwave_2D():
                     positions.append([float(x), float(y)])
                     temp_wg = td.Box(center=[x, y, z_plane + self.GP.wh/2], size=[width, width, self.GP.wh], material=material1)
                     waveguides.append(temp_wg)
-            if self.GP.n_sub != 1:
-                material2 = td.Medium(epsilon=self.GP.n_sub**2)
-                sub = td.Box(center=[0, 0, -z_size/2], size=[x_size*2, y_size*2, 2], material=material2)
-                waveguides.append(sub)
             positions = np.array(positions)
             self.hs_with_pos = np.c_[hs.reshape((-1,1)), positions]
 
         if theta == 0:
             source = td.PlaneWave(
                 injection_axis='+z',
-                position=-z_size/2 + 0.5,
+                position=-z_size/2 + 2 * self.dl,
                 source_time = td.GaussianPulse(
                     frequency=fcen,
                     fwidth=fwidth),
@@ -78,7 +87,7 @@ class Fullwave_2D():
         else:
             source = td.GaussianBeam(
                 normal='z',
-                center=[0, 0, -z_size/2 + 0.5],
+                center=[0, 0, -z_size/2 + 2 * self.dl],
                 source_time=td.GaussianPulse(fcen, fwidth),
                 angle_theta=theta,
                 angle_phi=0,
@@ -86,11 +95,51 @@ class Fullwave_2D():
                 waist_radius=x_size * 10,
                 pol_angle=np.pi/2) #S polarization.
             print("Using Gaussian beam. the waist radius usually should much smaller than the sim size.")
-        self.monitors = []
-        self.monitors.append(td.FreqMonitor(center=[0, 0, z_plane + self.GP.wh + self.GP.lam/2], size=[x_size, y_size, 0], freqs=[fcen]))
-        if prop_dis != 0:
-            self.monitors.append(td.FreqMonitor(center=[0, 0, z_plane + self.GP.wh + prop_dis], size=[x_size, y_size, 0], freqs=[fcen]))
-        self.monitors.append(td.FreqMonitor(center=[0, 0, 0], size=[0, x_size, z_size], freqs=[fcen]))
+            
+        monitor_axis = td.FreqMonitor(
+                        center=[0., 0., 0],
+                        size=[0, 0, z_size],
+                        freqs=[fcen],
+                        store=['E', 'H'],
+                        name='axis')
+        monitor_focal_scan = td.FreqMonitor(
+                        center=[0., 0., -z_size/2 + spacing + self.GP.wh + prop_dis],
+                        size=[x_size, 0, 0],
+                        freqs=[fcen],
+                        store=['E', 'H'],
+                        name='focal_plane')
+        monitor_in = td.FreqMonitor(
+                        center=[0., 0., -z_size/2 + spacing -2*self.dl],
+                        size=[x_size, x_size, 0],
+                        freqs=[fcen],
+                        store=['E', 'H'],
+                        name='incident')
+        monitor_near = td.FreqMonitor(
+                        center=[0., 0., -z_size/2 + spacing + self.GP.wh + spacing/2],
+                        size=[x_size, x_size, 0],
+                        freqs=[fcen],
+                        store=['E', 'H'],
+                        name='near_field')
+        monitor_xy = td.FreqMonitor(
+                        center=[0., 0., -z_size/2 + spacing + self.GP.wh + prop_dis],
+                        size=[x_size, x_size, 0],
+                        freqs=[fcen],
+                        store=['E', 'H'],
+                        name='focal_plane')
+        monitor_eff = td.FreqMonitor(
+                        center=[0., 0., -z_size/2 + spacing + self.GP.wh + prop_dis],
+                        size=[self.efficiency_length, self.efficiency_length, 0],
+                        freqs=[fcen],
+                        store=['E', 'H'],
+                        name='focus')
+        monitor_CS1 = td.FreqMonitor(
+                        center=[0., 0., 0],
+                        size=[x_size, 0, z_size],
+                        freqs=[fcen],
+                        store=['E', 'H'],
+                        name='cross_section1')
+
+        self.monitors = [monitor_axis, monitor_focal_scan, monitor_in, monitor_near, monitor_xy, monitor_eff, monitor_CS1]
 
         # Initialize simulation
         self.sim = td.Simulation(size=sim_size,
@@ -100,10 +149,9 @@ class Fullwave_2D():
                             monitors=self.monitors,
                             run_time=run_time,
                             pml_layers=pml_layers)    
-        _, ax = plt.subplots(1, 3, figsize=(12, 3))
+        _, ax = plt.subplots(1, 2, figsize=(12, 6))
         self.sim.viz_mat_2D(normal='z', position=z_plane, ax=ax[0])
-        self.sim.viz_mat_2D(normal='y', ax=ax[1], monitor_alpha=0)
-        self.sim.viz_mat_2D(normal='x', ax=ax[2], source_alpha=0.9)
+        self.sim.viz_mat_2D(normal='x', ax=ax[1], source_alpha=0.9)
         plt.show()
         return None   
     
@@ -126,7 +174,7 @@ class Fullwave_2D():
         # Show the output of the log file
         with open(data_path + self.task_name + "/tidy3d.log") as f:
             print(f.read())
-        if self.sim == None:
+        if self.sim is None:
             raise Exception("self.sim is None.")
             #self.sim = td.Simulation.import_json(data_path + self.task_name + "/simulation.json")
         self.sim.load_results(data_path + self.task_name + '/monitor_data.hdf5')
@@ -134,101 +182,167 @@ class Fullwave_2D():
     
     def near_to_far(self, En, prop_dis):
         dx = self.GP.period / self.GP.out_res
-        freelayer1 = freespace_layer(prop_dis - self.GP.lam/2, self.GP.lam, En.shape[0], dx)
+        freelayer1 = freespace_layer(prop_dis, self.GP.lam, En.shape[0], dx)
         En = torch.tensor(En, dtype = torch.complex64)
         with torch.no_grad():
             Ef = freelayer1(En)
         out_Ef = Ef.cpu().numpy()
         return out_Ef
-    
-    def near_to_far_tidy3d(self, prop_dis, far_size):
-        '''
-            seems far off the ground truth.
-        '''
-        import tidy3d as td
-        monitors = self.sim.monitors
-        monitor_near = monitors[0]
-        monitor_data = self.sim.data(monitor_near)
-        n2f = td.Near2Far(monitor_data)
-        # points to project to
-        dx = self.sim.grid.mesh_step[0]
-        xs_far = np.arange(-far_size/2, far_size/2, dx)
-        ys_far = np.arange(-far_size/2, far_size/2, dx)
-        num_far = xs_far.size
-        # initialize the far field values
-        E_far = np.zeros((3, num_far, num_far), dtype=complex)
 
-        # loop through points in the output plane
-        for i in tqdm(range(num_far)):
-            x = xs_far[i]
-            for j in range(num_far):
-                y = ys_far[j]
-                # compute and store the outputs from projection function at the focal plane
-                E, H = n2f.get_fields_cartesian(x, y, prop_dis - self.GP.lam/2)
-                E_far[:, i, j] = E
-        E_far = E_far[1]
-        return E_far
-        
-    def vis_monitor(self,path = None, tidy3d_viz = True):
+    def results_analysis(self,path = None):
         if path:
-            if self.sim == None:
+            if self.sim is None:
                 raise Exception("init sim first, then you can download data.")
             self.sim.load_results(path + 'monitor_data.hdf5')
         monitors = self.sim.monitors
+        monitor_axis, monitor_focal_scan, monitor_in, monitor_near, monitor_xy, monitor_eff, monitor_CS1 = monitors
+        # intensity along focal plane
+        data_focus = self.sim.data(monitor_focal_scan)
+        E_focus = np.squeeze(data_focus['E'])
+        I_focus = np.sum(np.square(np.abs(E_focus)), axis=0)
+
+        xs = data_focus['xmesh']
+        I_focus = np.sum(np.square(np.abs(E_focus)), axis=0)
+        I_focus_normalized = I_focus / np.max(I_focus)
+
+        def FWHM(xs, Is):
+            # assume uniform sampling in xs
+            dx = np.mean(np.diff(xs))
+            hm = np.max(Is) / 2.0
+            return dx * np.sum(Is > hm)
+
+        from scipy.special import j1
+
+        # def airy(xs):
+        #     # theta_FWHM = 1.025λ/D
+        #     c = np.pi * self.x_size / self.GP.lam
+        #     arg = c * xs / np.sqrt(xs**2 + self.prop_dis**2) + 1e-12
+        #     return 1 * (j1(arg) / arg) **2
+
+        fwhm = FWHM(xs, I_focus)
+        print(f'fwhm = {fwhm:.4f} um, {(fwhm / self.GP.lam):.2f} $\lambda$')
+        #theo_fwhm = 1.025 * self.GP.lam * self.prop_dis / self.x_size
+        ideal_meta = Ideal_meta(self.GP)
+        ideal_meta.model_init(self.N, self.prop_dis, lens = True)
+        I_ideal = ideal_meta.forward()
+        I_ideal = I_ideal[I_ideal.shape[0]//2]
+        x_ideal = (np.arange(ideal_meta.total_size) - (ideal_meta.total_size - 1)/2) * ideal_meta.dx
+        diff_lim = np.interp(xs, x_ideal, I_ideal)
+        #diff_lim = airy(xs)
+        fwhm_airy = FWHM(xs, diff_lim)
+        print(f'fwhm_airy = {fwhm_airy:.4f} um,  {(fwhm_airy / self.GP.lam):.2f} $\lambda$')
+        #print(f'1.025 * lam * prop_dis / d: {theo_fwhm:.2f} um, {(theo_fwhm / self.GP.lam):.2f} $\lambda$')
+        #print("this may not be accurate, the airy formulation is for circle aperture instead of square.")
+        energy_diff_lim = np.sum(diff_lim)
+        energy_measured = np.sum(I_focus_normalized)
+        diff_lim_normalized = diff_lim / energy_diff_lim * energy_measured
+        strehl_ratio = np.max(I_focus_normalized) / np.max(diff_lim_normalized)
+        plt.plot(xs / self.GP.lam, I_focus_normalized, label='measured')
+        plt.plot(xs / self.GP.lam, diff_lim_normalized, label='diffraction limited')
+        plt.legend()
+
+        plt.title(f'FWHM = {(fwhm / self.GP.lam):.4f} $\lambda$, {(fwhm*1000):.2f} nm , Strehl ratio = {strehl_ratio:.4f}')
+        plt.xlabel('axis position ($\lambda_0$)')
+        plt.xlim([-2, 2])
+        plt.ylabel('intensity (normalized)')
+        plt.show()     
+
+        power_in = self.sim.flux(monitor_in)[0][0]
+        power_near = self.sim.flux(monitor_near)[0][0]
+        power_far = self.sim.flux(monitor_xy)[0][0]
+        power_focus = self.sim.flux(monitor_eff)[0][0]
+
+        eff_trans = power_near / power_in
+        eff_far = power_far / power_in
+        eff_focus = power_focus / power_in
+
+        print(f'transmission efficiency = {(eff_trans*100):.2f}%')
+        print(f'far field efficiency = {(eff_far*100):.2f}%')
+        print(f'focusing efficiency = {(eff_focus*100):.2f}%')
+        
+    def vis_monitor(self,path = None, tidy3d_viz = True):
+        
+        if path:
+            if self.sim is None:
+                raise Exception("init sim first, then you can download data.")
+            self.sim.load_results(path + 'monitor_data.hdf5')
+        monitors = self.sim.monitors
+        monitor_axis, monitor_focal_scan, monitor_in, monitor_near, monitor_xy, monitor_eff, monitor_CS1= monitors
+        
         if tidy3d_viz:
-            _, ax = plt.subplots(1, 3, figsize=(18, 6))
-            self.sim.viz_field_2D(monitors[0], ax=ax[0], cbar=True, comp='y', val='abs')
-            self.sim.viz_field_2D(monitors[1], ax=ax[1], cbar=True, comp='y', val='abs')
-            if len(monitors) == 3:
-                self.sim.viz_field_2D(monitors[2], ax=ax[2], cbar=True, comp='y', val='abs')
+            _, ax = plt.subplots(1, 2, figsize=(12, 6))
+            im = self.sim.viz_field_2D(monitor_CS1, ax=ax[0], cbar=True, comp='y', val='int')
+            im.set_cmap(paper_cmap)
+            im = self.sim.viz_field_2D(monitor_eff, ax=ax[1], cbar=True, comp='y', val='int')
+            im.set_cmap(paper_cmap)
+            plt.show()
+            
         step1 = self.sim.grid.mesh_step[0]
         step2 = self.GP.period / self.GP.out_res
-        mdata = self.sim.data(monitors[0])
+        # mdata = self.sim.data(monitor_in)
+        # Ey_in = mdata['E'][1,:,:,0,0]
+        # Ey_in_FW = Ey_in
+        # Ey_in = resize_2d(Ey_in, step1, step2)
+        # phy_size_x = Ey_in.shape[1] * step2
+        # phy_size_y = Ey_in.shape[0] * step2
+        # show_field(Ey_in, phy_size_x, phy_size_y)
+        mdata = self.sim.data(monitor_near)
         Ey_near = mdata['E'][1,:,:,0,0]
         Ey_near_FW = Ey_near
         Ey_near = resize_2d(Ey_near, step1, step2)
         phy_size_x = Ey_near.shape[1] * step2
         phy_size_y = Ey_near.shape[0] * step2
         show_field(Ey_near, phy_size_x, phy_size_y)
-        if len(monitors) == 3:
-            mdata = self.sim.data(monitors[1])
-            Ey_far = mdata['E'][1,:,:,0,0] 
-            Ey_far_FW = Ey_far
-            Ey_far = resize_2d(Ey_far, step1, step2) 
-            I_far = np.abs(Ey_far)**2
-            show_intensity(I_far, phy_size_x, phy_size_y)     
-        else:
-            Ey_far = None
-            Ey_far_FW = None
+
+        mdata = self.sim.data(monitor_xy)
+        Ey_far = mdata['E'][1,:,:,0,0] 
+        Ey_far_FW = Ey_far
+        Ey_far = resize_2d(Ey_far, step1, step2) 
+        I_far = np.abs(Ey_far)**2
+        show_intensity(I_far, phy_size_x, phy_size_y)     
+
+        mdata = self.sim.data(monitor_eff)
+        Ey_eff = mdata['E'][1,:,:,0,0] 
+        I_eff = np.abs(Ey_eff)**2
+        show_intensity(I_eff, self.efficiency_length, self.efficiency_length)                
         print("return field: Ey_near, Ey_near_FW, Ey_far, Ey_far_FW. Ey_near is downsampled Ey_near_FW, so that resolution is same with cmt model.")
         return Ey_near, Ey_near_FW, Ey_far, Ey_far_FW
  
     def focal_efficiency(self, E_in, E_focal, NA):
-        B = self.GP.out_res * 3
-        I_in = np.abs(E_in[B:-B, B:-B])**2
-        c = E_focal.shape[0]//2 - self.GP.out_res//2
-        r = 6 * self.GP.out_res
+    
+        def FWHM(Is, dx, NA, lam):
+            hm = np.max(Is) / 2.0
+            fwhm = dx * np.sum(Is > hm)
+            print(f"Full width half maximum: {fwhm:.3f}")   
+            theo_fwhm = lam / 2 / NA
+            print(f"Full width half maximum of diffraction limit: {theo_fwhm:.3f}")
+
+        I_in = np.abs(E_in)**2
+        c = E_focal.shape[0]//2
+        dx = self.GP.period/self.GP.out_res
+        r = int(round(self.efficiency_length / dx / 2))
         I_focal = np.abs(E_focal[c - r: c + r, c - r: c + r])**2
-        self.FWHM(I_focal[r], NA)
+        self.FWHM(I_focal[r], dx, NA, self.GP.lam)
         phy_size = 12 * self.GP.period
         show_intensity(I_focal, phy_size, phy_size)
         focal_efficiency = I_focal.sum() / I_in.sum() * 100
         print(f"focal efficiency: {focal_efficiency:2f}%.")
         return None
     
-    def FWHM(self, I, NA):
-        I_HM = I.max()/2
-        idx_h = I.size//2
-        I_diff = np.abs(I[:idx_h] - I_HM)
-        idx_l = np.argmin(I_diff)
-        I_diff = np.abs(I[idx_h:] - I_HM)
-        idx_r = np.argmin(I_diff) 
-        dx = self.GP.period / self.GP.out_res
-        fwhm = (idx_r + idx_h - idx_l) * dx   
-        print(f"Full width half maximum: {fwhm:.3f}")   
-        theo_fwhm = self.GP.lam / 2 / NA
-        print(f"Full width half maximum of diffraction limit: {theo_fwhm:.3f}")
-        
+    # def FWHM(self, I, NA):
+    #     I_HM = I.max()/2
+    #     idx_h = I.size//2
+    #     I_diff = np.abs(I[:idx_h] - I_HM)
+    #     idx_l = np.argmin(I_diff)
+    #     I_diff = np.abs(I[idx_h:] - I_HM)
+    #     idx_r = np.argmin(I_diff) 
+    #     dx = self.GP.period / self.GP.out_res
+    #     fwhm = (idx_r + idx_h - idx_l) * dx   
+    #     print(f"Full width half maximum: {fwhm:.3f}")   
+    #     theo_fwhm = self.GP.lam / 2 / NA
+    #     print(f"Full width half maximum of diffraction limit: {theo_fwhm:.3f}")
+
+   
 def show_field(E, phy_size_x, phy_size_y):
     fig, ax = plt.subplots(1, 2, figsize=(12, 6))
     plot0 = ax[0].imshow(np.angle(E), cmap = 'magma', origin='lower', extent = (-phy_size_x/2, phy_size_x/2, -phy_size_y/2, phy_size_y/2))

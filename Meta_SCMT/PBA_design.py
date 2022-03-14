@@ -98,7 +98,7 @@ class PBA():
         if load:
             self.width_phase_map = np.load(self.GP.path + "rcwa_width_phase_map.npy")
         else:
-            if self.width_phase_map == None:
+            if self.width_phase_map is None:
                 self.gen_lib()
         x_lens, lens = lens_2D(N, self.GP.period, focal_length, self.GP.k)
         lens_phase = lens%(2 * np.pi) - np.pi
@@ -120,6 +120,45 @@ class PBA():
             plt.show()
         return widths_map
 
+    def width_to_phase(self, widths, dx, load = False, vis = True):
+        '''
+        input:
+            widths: can be 1 or 2 dim. 
+        output:
+            phases: same size with widths
+        '''
+        if load:
+            self.width_phase_map = np.load(self.GP.path + "rcwa_width_phase_map.npy")
+        else:
+            if self.width_phase_map is None:
+                self.gen_lib()
+        phases = gen_phase_from_width(self.width_phase_map, widths)
+        if vis:
+            x_lens = (np.arange(widths.shape[0]) - (widths.shape[0] - 1)/2) * dx
+            if len(widths.shape) == 2:
+                fig, axs = plt.subplots(1, 2, figsize = (12, 6))
+                plot1 = axs[0].imshow(phases, cmap = 'magma', extent = (x_lens.min(), x_lens.max(),x_lens.min(), x_lens.max()))
+                plt.colorbar(plot1, ax = axs[0])
+                plot2 = axs[1].imshow(widths, cmap = 'magma', extent = (x_lens.min(), x_lens.max(),x_lens.min(), x_lens.max()))
+                plt.colorbar(plot2, ax = axs[1])
+                axs[0].set_title("Lens phase")
+                axs[0].set_xlabel("Position [um]")
+                axs[0].set_ylabel("Position [um]")
+                axs[1].set_title("Lens widths")
+                axs[1].set_xlabel("Position [um]")
+                axs[1].set_ylabel("Position [um]")
+                plt.show()
+            else:
+                plt.figure()
+                fig, axs = plt.subplots(2, 1, figsize = (12, 12))
+                axs[0].plot(x_lens, phases)
+                axs[1].plot(x_lens, widths)
+                axs[0].set_title("Lens phase")
+                axs[0].set_xlabel("Position [um]")
+                axs[1].set_title("Lens widths")
+                axs[1].set_xlabel("Position [um]")
+        return phases
+            
 def gen_width_from_phase(width_phase_map, target_phase_profile):
     phases = width_phase_map[1]
     widths = width_phase_map[0]
@@ -132,6 +171,18 @@ def gen_width_from_phase(width_phase_map, target_phase_profile):
     widths_map = widths_map.reshape(size, size)
     return widths_map
 
+def gen_phase_from_width(width_phase_map, width_profile):
+    phases = width_phase_map[1]
+    widths = width_phase_map[0]
+    widths = widths.reshape(1,-1)
+    shape = width_profile.shape
+    width_profile = width_profile.reshape(-1,1)
+    diff = np.abs(width_profile - widths)
+    indexes = np.argmin(diff, axis = -1)
+    phases_map = np.take(phases, indexes)
+    phases_map = phases_map.reshape(shape)
+    return phases_map
+    
 def get_phase(field):
     Ey = field[0][1]
     phase = np.angle(Ey)

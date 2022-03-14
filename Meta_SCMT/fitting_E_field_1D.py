@@ -16,7 +16,7 @@ class Fitting_E_field_1D():
         
     def fit(self, layers = 4, steps = 10000, lr = 0.001, vis = True):
         modes_lib = self.gen_modes.modes_lib
-        if modes_lib == None:
+        if modes_lib is None:
             raise Exception("gen modes first!")
         X, Y, size_Ey = gen_fitting_data(self.modes, modes_lib, self.dh)
         self.model = Model(1, Y.shape[-1], layers= layers, nodes = 128)

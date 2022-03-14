@@ -16,7 +16,7 @@ class Fitting_E_field_2D():
         
     def fit(self, layers = 4, steps = 10000, lr = 0.001, vis = True, save_fig = False):
         modes_lib = self.gen_modes.modes_lib
-        if modes_lib == None:
+        if modes_lib is None:
             raise Exception("gen modes first!")
         out_size = 2 * (self.Knn + 1) * self.out_res
         X, Y, size_Ey = gen_fitting_data(self.modes, modes_lib, self.dh, out_size)

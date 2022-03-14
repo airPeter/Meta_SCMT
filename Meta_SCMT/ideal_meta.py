@@ -5,8 +5,8 @@
 from .SCMT_model_2D import Ideal_model
 import numpy as np
 import torch
-from .fullwave_2D import show_intensity
 from .utils import lens_2D
+import matplotlib.pyplot as plt
 class Ideal_meta():
     def __init__(self, GP) -> None:
         self.GP = GP
@@ -14,10 +14,11 @@ class Ideal_meta():
         self.total_size = None
         
     def model_init(self,N, prop_dis, init_phase = None, lens = False):
-        self.total_size = (N + 2 * self.GP.Knn + 1) * self.GP.out_res
+        self.total_size = (N) * self.GP.out_res
         self.dx = self.GP.period/self.GP.out_res
-        if init_phase == None and lens == True:
+        if init_phase is None and lens == True:
             _, init_phase = lens_2D(self.total_size, self.dx, prop_dis, self.GP.k)
+        self.init_phase = init_phase
         self.model = Ideal_model(prop_dis, self.GP, self.total_size)
         init_phase = torch.tensor(init_phase, dtype = torch.float)
         state_dict = self.model.state_dict()
@@ -31,7 +32,7 @@ class Ideal_meta():
         else:
             self.device = 'cpu'
         print("using device: ", self.device)
-        if E0 == None:
+        if E0 is None:
             x = np.arange(self.total_size) * self.dx
             y = x.copy()
             X, _ = np.meshgrid(x, y)
@@ -52,4 +53,12 @@ class Ideal_meta():
         return If
     
         
-        
+
+def show_intensity(I, phy_size_x, phy_size_y):
+    plt.figure()
+    plt.imshow(I, cmap = 'magma', origin='lower', extent = (-phy_size_x/2, phy_size_x/2, -phy_size_y/2, phy_size_y/2))
+    plt.xlabel("Position [um]")
+    plt.ylabel("Position [um]")
+    plt.colorbar()
+    plt.title("Intensity")
+    plt.show()

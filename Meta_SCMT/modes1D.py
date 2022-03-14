@@ -9,7 +9,7 @@ class Gen_modes1D():
         self.GP = GP
         self.modes_lib = None
     def count_modes(self,):
-        if self.modes_lib == None:
+        if self.modes_lib is None:
             raise Exception("gen modes first!")
         cnts = np.zeros((self.GP.modes,))
         for key in self.modes_lib.keys():
@@ -76,7 +76,7 @@ class Gen_modes1D():
         '''
             H an list of wg width you want to plot.
         '''
-        if self.modes_lib == None:
+        if self.modes_lib is None:
             raise Exception("gen modes first!")
         fig, axs = plt.subplots(1, 2, figsize = (12, 6))
         half_x = (self.GP.Knn + 1)*self.GP.period
