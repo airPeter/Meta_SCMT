@@ -3,19 +3,20 @@
     need to do: add optimize method.
 '''
 # standard python imports
+from logging import exception
+from msilib.schema import Error
 import numpy as np
 import matplotlib.pyplot as plt
 from tqdm import tqdm
-import os
 import grcwa
-
-from Meta_SCMT.utils import lens_2D
+from .utils import lens_2D, lens_1D
 #grcwa.set_backend('autograd')  # important!!
 grcwa.set_backend('numpy')
 
 class PBA():
-    def __init__(self, GP):
+    def __init__(self, GP, dim):
         self.GP = GP
+        self.dim = dim # dim = 1 or 2.
         self.width_phase_map = None
         
     def create_sim(self, width):   
@@ -52,7 +53,12 @@ class PBA():
         delta_x = Period / Nx
         width_res = int(round(width / delta_x))
         start = int(round((Nx - width_res)/2))
-        pillar_eps[start:start + width_res, start:start + width_res] = epH
+        if self.dim == 1:
+            pillar_eps[:, start:start + width_res] = epH
+        elif self.dim == 2:
+            pillar_eps[start:start + width_res, start:start + width_res] = epH
+        else:
+            raise Exception("dim invalid.")
         pillar_eps = pillar_eps.reshape(-1,)
         # planewave excitation
         planewave={'p_amp':0,'s_amp':1,'p_phase':0,'s_phase':0}
@@ -100,24 +106,37 @@ class PBA():
         else:
             if self.width_phase_map is None:
                 self.gen_lib()
-        x_lens, lens = lens_2D(N, self.GP.period, focal_length, self.GP.k)
+        if self.dim == 1:
+            x_lens, lens = lens_1D(N, self.GP.period, focal_length, self.GP.k)
+        elif self.dim == 2:
+            x_lens, lens = lens_2D(N, self.GP.period, focal_length, self.GP.k)
         lens_phase = lens%(2 * np.pi) - np.pi
         widths_map = gen_width_from_phase(self.width_phase_map, lens_phase)
         widths_map = np.around(widths_map, 3)
         
         if vis:
-            fig, axs = plt.subplots(1, 2, figsize = (12, 6))
-            plot1 = axs[0].imshow(lens, cmap = 'magma', extent = (x_lens.min(), x_lens.max(),x_lens.min(), x_lens.max()))
-            plt.colorbar(plot1, ax = axs[0])
-            plot2 = axs[1].imshow(widths_map, cmap = 'magma', extent = (x_lens.min(), x_lens.max(),x_lens.min(), x_lens.max()))
-            plt.colorbar(plot2, ax = axs[1])
-            axs[0].set_title("Lens phase")
-            axs[0].set_xlabel("Position [um]")
-            axs[0].set_ylabel("Position [um]")
-            axs[1].set_title("Lens widths")
-            axs[1].set_xlabel("Position [um]")
-            axs[1].set_ylabel("Position [um]")
-            plt.show()
+            if self.dim == 2:
+                fig, axs = plt.subplots(1, 2, figsize = (12, 6))
+                plot1 = axs[0].imshow(lens, cmap = 'magma', extent = (x_lens.min(), x_lens.max(),x_lens.min(), x_lens.max()))
+                plt.colorbar(plot1, ax = axs[0])
+                plot2 = axs[1].imshow(widths_map, cmap = 'magma', extent = (x_lens.min(), x_lens.max(),x_lens.min(), x_lens.max()))
+                plt.colorbar(plot2, ax = axs[1])
+                axs[0].set_title("Lens phase")
+                axs[0].set_xlabel("Position [um]")
+                axs[0].set_ylabel("Position [um]")
+                axs[1].set_title("Lens widths")
+                axs[1].set_xlabel("Position [um]")
+                axs[1].set_ylabel("Position [um]")
+                plt.show()
+            elif self.dim == 1:
+                plt.figure()
+                fig, axs = plt.subplots(2, 1, figsize = (12, 12))
+                axs[0].plot(x_lens, lens)
+                axs[1].plot(x_lens, widths_map)
+                axs[0].set_title("Lens phase")
+                axs[0].set_xlabel("Position [um]")
+                axs[1].set_title("Lens widths")
+                axs[1].set_xlabel("Position [um]")
         return widths_map
 
     def width_to_phase(self, widths, dx, load = False, vis = True):
@@ -163,12 +182,12 @@ def gen_width_from_phase(width_phase_map, target_phase_profile):
     phases = width_phase_map[1]
     widths = width_phase_map[0]
     phases = phases.reshape(1,-1)
-    size = target_phase_profile.shape[0]
+    target_shape = target_phase_profile.shape
     target_phase_profile = target_phase_profile.reshape(-1,1)
     diff = np.abs(target_phase_profile - phases)
     indexes = np.argmin(diff, axis = -1)
     widths_map = np.take(widths, indexes)
-    widths_map = widths_map.reshape(size, size)
+    widths_map = widths_map.reshape(target_shape)
     return widths_map
 
 def gen_phase_from_width(width_phase_map, width_profile):

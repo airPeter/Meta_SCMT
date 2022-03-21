@@ -124,7 +124,7 @@ class Gen_modes2D():
                 sims_loaded = self.batch.load_results()
             none_sims = []
             for i, sim in enumerate(sims_loaded):
-                if sim == None:
+                if sim is None:
                     none_sims.append(i)
             if len(none_sims) > 0:
                 raise Exception("for these sims", none_sims, "tidy3d load went wrong. manually download the results from website to", self.base_dir, "and run gen again.")
@@ -186,7 +186,7 @@ class Gen_modes2D():
         '''
             H an list of wg width you want to plot.
         '''
-        if self.modes_lib == None:
+        if self.modes_lib is None:
             raise Exception("gen modes first!")
         for h in H:
             index = h2index(h, self.GP.dh)
@@ -210,7 +210,7 @@ class Gen_modes2D():
         '''
             plot h vs neff
         '''
-        if self.modes_lib == None:
+        if self.modes_lib is None:
             raise Exception("gen modes first!")
         plt.figure()
         for mode in range(self.GP.modes):

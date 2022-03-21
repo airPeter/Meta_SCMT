@@ -81,6 +81,7 @@ class Sim():
                     
             self.scmt = SCMT_1D(self.GP)
             self.fullwave = Fullwave_1D(self.GP)
+            self.PBA = PBA(self.GP, 1)
         if self.GP.dim == 2:
             if self.GP.modes > 1:
                 raise Exception("Currently, only support modes = 1 for 2 dimensional waveguide.")
@@ -92,5 +93,5 @@ class Sim():
                                                 self.GP.n_wg, self.GP.n0, self.GP.k, self.GP.C_EPSILON, self.GP.period)
             self.scmt = SCMT_2D(self.GP)
             self.fullwave = Fullwave_2D(self.GP)
-            self.PBA = PBA(self.GP)
+            self.PBA = PBA(self.GP, 2)
             self.ideal_meta = Ideal_meta(self.GP)

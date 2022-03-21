@@ -190,6 +190,11 @@ class Fullwave_2D():
         return out_Ef
 
     def results_analysis(self,path = None):
+        def FWHM(xs, Is):
+            # assume uniform sampling in xs
+            dx = np.mean(np.diff(xs))
+            hm = np.max(Is) / 2.0
+            return dx * np.sum(Is > hm)
         if path:
             if self.sim is None:
                 raise Exception("init sim first, then you can download data.")
@@ -200,50 +205,42 @@ class Fullwave_2D():
         data_focus = self.sim.data(monitor_focal_scan)
         E_focus = np.squeeze(data_focus['E'])
         I_focus = np.sum(np.square(np.abs(E_focus)), axis=0)
-
         xs = data_focus['xmesh']
-        I_focus = np.sum(np.square(np.abs(E_focus)), axis=0)
-        I_focus_normalized = I_focus / np.max(I_focus)
-
-        def FWHM(xs, Is):
-            # assume uniform sampling in xs
-            dx = np.mean(np.diff(xs))
-            hm = np.max(Is) / 2.0
-            return dx * np.sum(Is > hm)
-
-        from scipy.special import j1
-
-        # def airy(xs):
-        #     # theta_FWHM = 1.025λ/D
-        #     c = np.pi * self.x_size / self.GP.lam
-        #     arg = c * xs / np.sqrt(xs**2 + self.prop_dis**2) + 1e-12
-        #     return 1 * (j1(arg) / arg) **2
-
         fwhm = FWHM(xs, I_focus)
         print(f'fwhm = {fwhm:.4f} um, {(fwhm / self.GP.lam):.2f} $\lambda$')
         #theo_fwhm = 1.025 * self.GP.lam * self.prop_dis / self.x_size
+        
+        data_far = self.sim.data(monitor_xy)
+        E_far = np.squeeze(data_far['E'])
+        I_far = np.sum(np.square(np.abs(E_far)), axis=0)
+        xs_far = data_far['xmesh']
         ideal_meta = Ideal_meta(self.GP)
         ideal_meta.model_init(self.N, self.prop_dis, lens = True)
         I_ideal = ideal_meta.forward()
-        I_ideal = I_ideal[I_ideal.shape[0]//2]
-        x_ideal = (np.arange(ideal_meta.total_size) - (ideal_meta.total_size - 1)/2) * ideal_meta.dx
-        diff_lim = np.interp(xs, x_ideal, I_ideal)
+        I_ideal = resize_2d_intensity(I_ideal, ideal_meta.dx, np.mean(np.diff(xs_far)))
+        power_ideal = np.sum(I_ideal)
+        r = int(round(self.efficiency_length / ideal_meta.dx / 2))
+        c = I_ideal.shape[0]//2
+        I_focus_ideal = I_ideal[c - r: c + r, c - r: c + r]
+        power_ideal_focus = I_focus_ideal.sum()
+        print(f'Ideal focal area power/total_far_field_power = {power_ideal_focus/ power_ideal * 100:.2f}%')
+        I_far_normalized = I_far / np.sum(I_far) * power_ideal
+        strehl_ratio = np.max(I_far_normalized) / np.max(I_ideal)
+        I_ideal_1D = I_ideal[I_ideal.shape[0]//2]
+        I_ideal_normalized_1D = I_ideal_1D/I_ideal_1D.max()
+        I_far_normalized_1D = I_far_normalized[I_far_normalized.shape[0]//2]
+        I_far_normalized_1D = I_far_normalized_1D/I_ideal_1D.max()
+        
         #diff_lim = airy(xs)
-        fwhm_airy = FWHM(xs, diff_lim)
+        fwhm_airy = FWHM(xs_far, I_ideal_1D)
         print(f'fwhm_airy = {fwhm_airy:.4f} um,  {(fwhm_airy / self.GP.lam):.2f} $\lambda$')
-        #print(f'1.025 * lam * prop_dis / d: {theo_fwhm:.2f} um, {(theo_fwhm / self.GP.lam):.2f} $\lambda$')
-        #print("this may not be accurate, the airy formulation is for circle aperture instead of square.")
-        energy_diff_lim = np.sum(diff_lim)
-        energy_measured = np.sum(I_focus_normalized)
-        diff_lim_normalized = diff_lim / energy_diff_lim * energy_measured
-        strehl_ratio = np.max(I_focus_normalized) / np.max(diff_lim_normalized)
-        plt.plot(xs / self.GP.lam, I_focus_normalized, label='measured')
-        plt.plot(xs / self.GP.lam, diff_lim_normalized, label='diffraction limited')
-        plt.legend()
 
+        plt.plot(xs_far / self.GP.lam, I_far_normalized_1D, label='measured')
+        plt.plot(xs_far / self.GP.lam, I_ideal_normalized_1D, label='diffraction limited')
+        plt.xlim([-2, 2])
+        plt.legend()
         plt.title(f'FWHM = {(fwhm / self.GP.lam):.4f} $\lambda$, {(fwhm*1000):.2f} nm , Strehl ratio = {strehl_ratio:.4f}')
         plt.xlabel('axis position ($\lambda_0$)')
-        plt.xlim([-2, 2])
         plt.ylabel('intensity (normalized)')
         plt.show()     
 
@@ -259,7 +256,7 @@ class Fullwave_2D():
         print(f'transmission efficiency = {(eff_trans*100):.2f}%')
         print(f'far field efficiency = {(eff_far*100):.2f}%')
         print(f'focusing efficiency = {(eff_focus*100):.2f}%')
-        
+        print(f'focal area power/total_far_field_power = {power_focus / power_far * 100:.2f}%')
     def vis_monitor(self,path = None, tidy3d_viz = True):
         
         if path:
@@ -366,7 +363,29 @@ def show_intensity(I, phy_size_x, phy_size_y):
     plt.colorbar()
     plt.title("Intensity")
     plt.show()
+
+def resize_2d_intensity(field, step1, step2):
+    '''
+      tooooooooo slow!
+    input:
+        field 2D data needed to be resampled.
+        step1, current step size.
+        step2, output step size.
+    output:
+        a dict, that ['Ey'] , ['X'], ['Y'], data, and coordinate.
+    '''
+    phy_size_x = field.shape[1] * step1
+    phy_size_y = field.shape[0] * step1
     
+    x = np.linspace(0, phy_size_x, num = field.shape[1])
+    y = np.linspace(0, phy_size_y, num = field.shape[0])
+
+    f_real = interpolate.interp2d(x, y, field, kind='linear')
+    
+    x = np.arange(0, phy_size_x, step2)
+    y = np.arange(0, phy_size_y, step2)
+    out = f_real(x, y)
+    return out
     
 def resize_2d(field, step1, step2):
     '''

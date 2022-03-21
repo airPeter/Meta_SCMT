@@ -14,6 +14,11 @@ def opt_phase_offset(p1, p2):
             opt_p = offset
     return opt_p
 
+def lens_1D(total_size, dx, focal_lens, k):
+    x = (np.arange(total_size) - (total_size - 1)/2) * dx
+    phase = k * (focal_lens - np.sqrt(x**2 + focal_lens**2))
+    return x, phase
+
 def lens_2D(total_size, dx, focal_lens, k):
     x = (np.arange(total_size) - (total_size - 1)/2) * dx
     y = x.copy()
