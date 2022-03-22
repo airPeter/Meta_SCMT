@@ -23,7 +23,7 @@ class SCMT_2D():
         self.k_row = None
         self.prop_dis = None
         
-    def init_model(self, N, prop_dis, APPROX, Ni = None, k_row = None, Euler_steps = None, devs = None, COUPLING = True, layer_neff = 2, layer_C = 4, layer_K = 4, layer_E = 4, init_hs = None, far_field = False):
+    def init_model(self, N, prop_dis, APPROX, Ni = None, k_row = None, Euler_steps = None, devs = None, COUPLING = True, init_hs = None, far_field = False):
         '''
             the layers will be used when re building the fitted model. If you change any of this default values when you do the fitting.
             you should also change at here.
@@ -52,9 +52,9 @@ class SCMT_2D():
         else:
             self.Euler_steps = Euler_steps
         if far_field:
-            self.model = SCMT_Model(self.prop_dis, self.Euler_steps, self.devs, self.GP, self.COUPLING, self.APPROX, self.Ni, self.k_row, self.N, layer_neff, layer_C, layer_K, layer_E)
+            self.model = SCMT_Model(self.prop_dis, self.Euler_steps, self.devs, self.GP, self.COUPLING, self.APPROX, self.Ni, self.k_row, self.N)
         else:
-            self.model = Metalayer(self.Euler_steps, self.devs, self.GP, self.COUPLING, self.APPROX, self.Ni, self.k_row, self.N, layer_neff, layer_C, layer_K, layer_E)
+            self.model = Metalayer(self.Euler_steps, self.devs, self.GP, self.COUPLING, self.APPROX, self.Ni, self.k_row, self.N)
         self.init_paras(self.model, self.GP.path, init_hs)
         return None
     

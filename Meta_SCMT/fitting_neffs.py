@@ -21,8 +21,8 @@ class Fitting_neffs():
         self.dh = dh
         self.path = path
         
-    def fit(self, layers = 2, steps = 10000, lr = 0.001, vis = True, save_fig = False):
-        self.model = Model(in_size = 1, out_size = self.modes, layers = layers, nodes = 128)
+    def fit(self, layers = 2, nodes = 128, steps = 10000, lr = 0.001, vis = True, save_fig = False):
+        self.model = Model(in_size = 1, out_size = self.modes, layers = layers, nodes = nodes)
         modes_lib = self.gen_modes.modes_lib
         if modes_lib is None:
             raise Exception("gen modes first!")
@@ -31,6 +31,8 @@ class Fitting_neffs():
         pred_neffs = train(self.model, widths, neffs, steps, lr, batch_size)
         torch.save(self.model.state_dict(), self.path + "fitting_neffs_state_dict")
         print("model saved.")
+        neff_paras = {'nodes': nodes, 'layers': layers}
+        np.save(self.path + "neff_paras.npy", neff_paras)
         if vis:
             plt.figure()
             for mode in range(self.modes):

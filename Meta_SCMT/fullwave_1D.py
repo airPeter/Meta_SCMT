@@ -45,11 +45,11 @@ class Fullwave_1D():
             material2 = td.Medium(epsilon=self.GP.n_sub**2)
             sub = td.Box(center=[0, 0, -z_size/2], size=[x_size*2, y_size*2, 2], material=material2)
             waveguides.append(sub)
-        gold = td.material_library.Au()
-        aper1 = td.Box(center=[-(x_aper + x_wgs)/2, 0, z_plane + self.GP.wh/2], size=[x_aper, y_size*2, self.GP.wh], material=gold)
-        waveguides.append(aper1)
-        aper2 = td.Box(center=[(x_aper + x_wgs)/2, 0, z_plane + self.GP.wh/2], size=[x_aper, y_size*2, self.GP.wh], material=gold)
-        waveguides.append(aper2)
+        # gold = td.material_library.Au()
+        # aper1 = td.Box(center=[-(x_aper + x_wgs)/2 - x_aper, 0, z_plane + self.GP.wh/2], size=[2 * x_aper, y_size*2, self.GP.wh], material=gold)
+        # waveguides.append(aper1)
+        # aper2 = td.Box(center=[(x_aper + x_wgs)/2 + x_aper, 0, z_plane + self.GP.wh/2], size=[2 * x_aper, y_size*2, self.GP.wh], material=gold)
+        # waveguides.append(aper2)
         if not empty:
             for i in range(N):
                     width = hs[i]

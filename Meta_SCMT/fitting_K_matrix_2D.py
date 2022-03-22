@@ -28,13 +28,15 @@ class Fitting_K_matrix_2D():
         self.k = k
         self.C_EPSILON = C_EPSILON
         
-    def fit(self, layers = 4, steps = 1000, lr = 0.001, vis = True, load = True, save_fig = False):
+    def fit(self, layers = 4, nodes = 256, steps = 1000, lr = 0.001, vis = True, load = True, save_fig = False):
         X, Y = self.gen_fitting_data(load)
-        self.model = Model(4, self.channels, layers= layers, nodes = 256)
+        self.model = Model(4, self.channels, layers= layers, nodes = nodes)
         batch_size = 512
         Y_pred = train(self.model, X, Y, steps, lr, batch_size)
         torch.save(self.model.state_dict(), self.path + "fitting_K_state_dict")
         print("model saved.")
+        K_paras = {'nodes': nodes, 'layers': layers}
+        np.save(self.path + "K_paras.npy", K_paras)
         feasible_dis = self.gen_feasible_dis()
         feasible_dis_len = len(feasible_dis)
         if vis:

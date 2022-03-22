@@ -20,7 +20,7 @@ class SCMT_1D():
         self.k_row = None
         self.prop_dis = None
         
-    def init_model(self, N, prop_dis, COUPLING = True, layer_neff = 2, layer_C = 6, layer_K = 6, layer_E = 4, init_hs = None, far_field = False):
+    def init_model(self, N, prop_dis, COUPLING = True, init_hs = None, far_field = False):
         '''
             the layers will be used when re building the fitted model. If you change any of this default values when you do the fitting.
             you should also change at here.
@@ -37,9 +37,9 @@ class SCMT_1D():
         self.COUPLING = COUPLING
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         if far_field:
-            self.model = SCMT_Model(self.prop_dis, self.GP, COUPLING, N, layer_neff, layer_C, layer_K, layer_E)
+            self.model = SCMT_Model(self.prop_dis, self.GP, COUPLING, N)
         else:
-            self.model = Metalayer(self.GP, COUPLING, N, layer_neff, layer_C, layer_K, layer_E)
+            self.model = Metalayer(self.GP, COUPLING, N)
         self.init_paras(self.model, self.GP.path, init_hs)
         self.model = self.model.to(self.device)
         return None

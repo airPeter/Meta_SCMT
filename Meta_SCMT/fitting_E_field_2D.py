@@ -14,17 +14,19 @@ class Fitting_E_field_2D():
         self.model = None
         self.path = path 
         
-    def fit(self, layers = 4, steps = 10000, lr = 0.001, vis = True, save_fig = False):
+    def fit(self, layers = 4, nodes = 128, steps = 10000, lr = 0.001, vis = True, save_fig = False):
         modes_lib = self.gen_modes.modes_lib
         if modes_lib is None:
             raise Exception("gen modes first!")
         out_size = 2 * (self.Knn + 1) * self.out_res
         X, Y, size_Ey = gen_fitting_data(self.modes, modes_lib, self.dh, out_size)
-        self.model = Model(1, Y.shape[-1], layers= layers, nodes = 128)
+        self.model = Model(1, Y.shape[-1], layers= layers, nodes = nodes)
         batch_size = X.shape[0]
         Y_pred = train(self.model, X, Y, steps, lr, batch_size)
         torch.save(self.model.state_dict(), self.path + "fitting_E_state_dict_outres_" + str(self.out_res))
         print("model saved.")
+        E_paras = {'nodes': nodes, 'layers': layers}
+        np.save(self.path + "E_paras.npy", E_paras)
         if vis:
             indexs = np.random.randint(0, Y.shape[0], size = (3,))
             Y_pred = Y_pred.reshape(-1, self.modes, size_Ey, size_Ey)

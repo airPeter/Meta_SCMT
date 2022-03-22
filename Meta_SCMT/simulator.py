@@ -38,6 +38,8 @@ class GP():
         self.Knn = 2 #number of nearest neighbors for the C and K matrix.
         self.period = period
         self.res = res #resolution within one period
+        if dim == 1 and downsample_ratio != 1:
+            raise Exception("only support downsample_ratio = 1 for dim = 1.")
         self.downsample_ratio = downsample_ratio
         self.out_res = int(round(self.downsample_ratio * self.res))
         self.dx = self.period/self.res

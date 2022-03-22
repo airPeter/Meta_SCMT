@@ -21,12 +21,14 @@ class Fitting_C_matrix_1D():
         self.model = None
         self.path = path
         
-    def fit(self, layers = 6, steps = 1000, lr = 0.001, vis = True, load = True):
+    def fit(self, layers = 6, nodes = 64, steps = 1000, lr = 0.001, vis = True, load = True):
         X, Y = self.gen_fitting_data(load)
-        self.model = Model(3, self.channels, layers= layers, nodes = 64)
+        self.model = Model(3, self.channels, layers= layers, nodes = nodes)
         batch_size = 512
         Y_pred = train(self.model, X, Y, steps, lr, batch_size)
         torch.save(self.model.state_dict(), self.path + "fitting_C_state_dict")
+        C_paras = {'nodes': nodes, 'layers': layers}
+        np.save(self.path + "C_paras.npy", C_paras)
         print("model saved.")
         if vis:
             Y_pred = Y_pred.reshape(-1, self.Knn * 2 + 2, self.channels)

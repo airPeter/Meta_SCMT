@@ -5,7 +5,7 @@ from .utils import Model, fourier_conv
 from .sputil_2D import gen_coo_sparse, gen_dis_CK_input, gen_input_hs, gen_Cinv_rows
 
 class Metalayer(torch.nn.Module):
-    def __init__(self, Euler_steps, devs, GP, COUPLING, APPROX, Ni, k_row, N, ln, lc, lk, le):
+    def __init__(self, Euler_steps, devs, GP, COUPLING, APPROX, Ni, k_row, N):
         '''
 
         '''
@@ -35,10 +35,18 @@ class Metalayer(torch.nn.Module):
         self.dh = GP.dh
         self.wh = GP.wh
         self.k = GP.k
-        self.neffnn = gen_neff(GP.modes, ln).to(self.devs[0])
-        self.genc = gen_C(GP.modes, lc, N).to(self.devs[0])
-        self.genk = gen_K(GP.modes, lk, N).to(self.devs[0])
-        self.genu0 = gen_U0(GP.modes, ln, le, GP.out_res, N, GP.n0, GP.C_EPSILON, GP.period, GP.Knn).to(self.devs[0])
+        neff_paras = np.load(self.GP.path + "neff_paras.npy", allow_pickle= True)
+        neff_paras = neff_paras.item()
+        C_paras = np.load(self.GP.path + "C_paras.npy", allow_pickle= True)
+        C_paras = C_paras.item()
+        K_paras = np.load(self.GP.path + "K_paras.npy", allow_pickle= True)
+        K_paras = K_paras.item()
+        E_paras = np.load(self.GP.path + "E_paras.npy", allow_pickle= True)
+        E_paras = E_paras.item()
+        self.neffnn = gen_neff(GP.modes, neff_paras['nodes'], neff_paras['layers']).to(self.devs[0])
+        self.genc = gen_C(GP.modes, C_paras['nodes'], C_paras['layers'], N).to(self.devs[0])
+        self.genk = gen_K(GP.modes, K_paras['nodes'], K_paras['layers'], N).to(self.devs[0])
+        self.genu0 = gen_U0(GP.modes, neff_paras['nodes'], neff_paras['layers'], E_paras['nodes'], E_paras['layers'], GP.out_res, N, GP.n0, GP.C_EPSILON, GP.period, GP.Knn).to(self.devs[0])
         self.genen = gen_En(GP.modes, GP.out_res, N, GP.n0, GP.C_EPSILON, GP.Knn).to(self.devs[0])
         self.sig = torch.nn.Sigmoid()
         if GP.Knn != 2:
@@ -111,9 +119,9 @@ class Metalayer(torch.nn.Module):
         self.genu0.reset(path)
 
 class gen_neff(nn.Module):
-    def __init__(self, modes, layers):
+    def __init__(self, modes, nodes, layers):
         super(gen_neff, self).__init__()    
-        self.model = Model(in_size = 1, out_size = modes, layers = layers, nodes = 128).requires_grad_(requires_grad=False)
+        self.model = Model(in_size = 1, out_size = modes, layers = layers, nodes = nodes).requires_grad_(requires_grad=False)
     def forward(self, hs):
         '''
         input: 
@@ -128,7 +136,7 @@ class gen_neff(nn.Module):
 
 
 class gen_U0(nn.Module):
-    def __init__(self, modes, ln, le, out_res, N, n0, C_EPSILON, period, Knn):
+    def __init__(self, modes, node_n, ln, node_e, le, out_res, N, n0, C_EPSILON, period, Knn):
         super(gen_U0, self).__init__()
         self.N = N
         self.n0 = n0
@@ -137,10 +145,10 @@ class gen_U0(nn.Module):
         self.Knn = Knn
         self.modes = modes
         self.out_res = out_res
-        self.neffnn = gen_neff(modes, ln).requires_grad_(requires_grad=False)
+        self.neffnn = gen_neff(modes, node_n, ln).requires_grad_(requires_grad=False)
         enn_out_size = modes * (2 * (Knn + 1) * out_res)**2
         self.Ey_size = 2 * (Knn + 1) * out_res
-        self.enn = Model(1, enn_out_size, layers= le, nodes = 128).requires_grad_(requires_grad=False)
+        self.enn = Model(1, enn_out_size, layers= le, nodes = node_e).requires_grad_(requires_grad=False)
         self.register_buffer('E0_slice', torch.zeros((N**2, 1, self.Ey_size, self.Ey_size), dtype= torch.complex64))
     def forward(self, hs, E0):
         '''
@@ -200,10 +208,10 @@ class gen_En(nn.Module):
         return self.En
         
 class gen_C(nn.Module):
-    def __init__(self, modes, lc, N):
+    def __init__(self, modes, node_c, lc, N):
         super(gen_C, self).__init__()
         self.channels = modes**2
-        self.cnn = Model(4, self.channels, layers= lc, nodes = 128).requires_grad_(requires_grad=False)
+        self.cnn = Model(4, self.channels, layers= lc, nodes = node_c).requires_grad_(requires_grad=False)
         self.N = N
         self.modes = modes 
         
@@ -220,10 +228,10 @@ class gen_C(nn.Module):
         self.cnn.load_state_dict(model_state)
 
 class gen_K(nn.Module):
-    def __init__(self, modes, lk, N):
+    def __init__(self, modes, node_k, lk, N):
         super(gen_K, self).__init__()
         self.channels = modes**2
-        self.knn = Model(4, self.channels, layers= lk, nodes = 256).requires_grad_(requires_grad=False)
+        self.knn = Model(4, self.channels, layers= lk, nodes = node_k).requires_grad_(requires_grad=False)
         self.N = N
         self.modes = modes 
 
@@ -240,11 +248,11 @@ class gen_K(nn.Module):
         self.knn.load_state_dict(model_state)
 
 class SCMT_Model(nn.Module):
-    def __init__(self, prop_dis, Euler_steps, devs, GP, COUPLING, APPROX, Ni, k_row, N, layer_neff, layer_C, layer_K, layer_E):
+    def __init__(self, prop_dis, Euler_steps, devs, GP, COUPLING, APPROX, Ni, k_row, N):
         super(SCMT_Model, self).__init__()
         self.prop = prop_dis
         total_size = (N + 2 * GP.Knn + 1) * GP.out_res
-        self.metalayer1 = Metalayer(Euler_steps, devs, GP, COUPLING, APPROX, Ni, k_row, N, layer_neff, layer_C, layer_K, layer_E)
+        self.metalayer1 = Metalayer(Euler_steps, devs, GP, COUPLING, APPROX, Ni, k_row, N)
         self.freelayer1 = freespace_layer(self.prop, GP.lam, total_size, GP.period / GP.out_res).to(devs[0])
     def forward(self, E0):
         En = self.metalayer1(E0)
