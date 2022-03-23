@@ -3,8 +3,6 @@
     need to do: add optimize method.
 '''
 # standard python imports
-from logging import exception
-from msilib.schema import Error
 import numpy as np
 import matplotlib.pyplot as plt
 from tqdm import tqdm
@@ -129,7 +127,6 @@ class PBA():
                 axs[1].set_ylabel("Position [um]")
                 plt.show()
             elif self.dim == 1:
-                plt.figure()
                 fig, axs = plt.subplots(2, 1, figsize = (12, 12))
                 axs[0].plot(x_lens, lens)
                 axs[1].plot(x_lens, widths_map)
@@ -137,6 +134,7 @@ class PBA():
                 axs[0].set_xlabel("Position [um]")
                 axs[1].set_title("Lens widths")
                 axs[1].set_xlabel("Position [um]")
+                plt.show()
         return widths_map
 
     def width_to_phase(self, widths, dx, load = False, vis = True):
@@ -168,7 +166,6 @@ class PBA():
                 axs[1].set_ylabel("Position [um]")
                 plt.show()
             else:
-                plt.figure()
                 fig, axs = plt.subplots(2, 1, figsize = (12, 12))
                 axs[0].plot(x_lens, phases)
                 axs[1].plot(x_lens, widths)
@@ -176,6 +173,7 @@ class PBA():
                 axs[0].set_xlabel("Position [um]")
                 axs[1].set_title("Lens widths")
                 axs[1].set_xlabel("Position [um]")
+                plt.show()
         return phases
             
 def gen_width_from_phase(width_phase_map, target_phase_profile):

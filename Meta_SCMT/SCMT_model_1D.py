@@ -186,7 +186,7 @@ class gen_C(nn.Module):
             for mj in range(self.modes):
                 ch = mi * self.modes + mj
                 val = C_stripped[:,ch]
-                coo = self.coo * self.modes + mj
+                coo = self.coo * self.modes + torch.tensor(np.array([[mi], [mj]]), dtype = torch.int).to(self.coo.device)
                 C_sparse = torch.sparse_coo_tensor(coo, val, (self.modes * self.N, self.modes * self.N), requires_grad= False)
                 C_sparses.append(C_sparse)
         for C_temp in C_sparses[:-1]:
@@ -220,7 +220,7 @@ class gen_K(nn.Module):
             for mj in range(self.modes):
                 ch = mi * self.modes + mj
                 val = K_stripped[:,ch]
-                coo = self.coo * self.modes + mj
+                coo = self.coo * self.modes + torch.tensor(np.array([[mi], [mj]]), dtype = torch.int).to(self.coo.device)
                 K_sparse = torch.sparse_coo_tensor(coo, val, (self.modes * self.N, self.modes * self.N), requires_grad= False)
                 K_sparses.append(K_sparse)
         for K_temp in K_sparses[:-1]:

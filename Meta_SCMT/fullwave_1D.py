@@ -11,6 +11,10 @@ class Fullwave_1D():
         # tidy3D import
         import tidy3d as td
         warnings.warn("Fullwave is expensive and slow. Only do fullwave on small devices. And low resolution can be inaccurate.")
+        if hs.max() > self.GP.h_max:
+            warnings.warn("initial widths larger than h_max, bad initial widths for waveguides.")
+        if hs.min() < self.GP.h_min:
+            warnings.warn("initial widths smaller than h_min, bad initial widths for waveguides.")
         if res == None:
             self.res = int(round(1 / self.GP.dh))
         else:

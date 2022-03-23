@@ -1,4 +1,3 @@
-from cv2 import sampsonDistance
 import numpy as np
 import torch
 from torch.utils.data import DataLoader,Dataset
@@ -13,6 +12,20 @@ def opt_phase_offset(p1, p2):
             dis = np.sum(np.abs(p_off - p2))
             opt_p = offset
     return opt_p
+
+def get_phase_offset(E1, E2):
+    L2_dis = np.inf
+    theta_opt = 0
+    for theta in np.linspace(0, 2 * np.pi, 300):
+        E_temp = E1 * np.exp(1j * theta)
+        phase_temp = np.angle(E_temp)
+        phase2 = np.angle(E2)
+        dis_temp = ((phase_temp - phase2)**2).sum()
+        if dis_temp < L2_dis:
+            L2_dis = dis_temp
+            theta_opt = theta
+    print("minimum phase l2 dis:", L2_dis)
+    return theta_opt
 
 def lens_1D(total_size, dx, focal_lens, k):
     x = (np.arange(total_size) - (total_size - 1)/2) * dx
