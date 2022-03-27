@@ -1,6 +1,5 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from sympy import minimum
 from .SCMT_model_2D import Metalayer, SCMT_Model
 import torch
 from torch import optim
