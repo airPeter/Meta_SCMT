@@ -26,7 +26,8 @@ class Fullwave_1D():
         # Simulation domain size (in micron)
         z_size = self.GP.wh + 2 + prop_dis
         x_wgs = N * self.GP.period
-        x_aper = 2 * N * self.GP.period
+        #x_aper = N * self.GP.period
+        x_aper = 0
         x_size = x_wgs + 2 * x_aper
         y_size = 1/self.res
         sim_size = [x_size, y_size, z_size]
@@ -43,7 +44,7 @@ class Fullwave_1D():
         material1 = td.Medium(epsilon=self.GP.n_wg**2)
         waveguides = []
         z_plane = -z_size/2 + 1
-        X = (np.arange(N) - (N - 1)//2) * self.GP.period
+        X = (np.arange(N) - (N - 1)/2) * self.GP.period
         positions = []
         if self.GP.n_sub != 1:
             material2 = td.Medium(epsilon=self.GP.n_sub**2)
@@ -61,7 +62,11 @@ class Fullwave_1D():
                     positions.append(float(x))
                     temp_wg = td.Box(center=[x, 0, z_plane + self.GP.wh/2], size=[width, y_size*2, self.GP.wh], material=material1)
                     waveguides.append(temp_wg)
-
+                    # temp_wg = td.Box(center=[x - x_wgs, 0, z_plane + self.GP.wh/2], size=[width, y_size*2, self.GP.wh], material=material1)
+                    # waveguides.append(temp_wg)
+                    # temp_wg = td.Box(center=[x + x_wgs, 0, z_plane + self.GP.wh/2], size=[width, y_size*2, self.GP.wh], material=material1)
+                    # waveguides.append(temp_wg)
+                    
         positions = np.array(positions)
         self.hs_with_pos = np.c_[hs.reshape((-1,1)), positions]
 
@@ -75,12 +80,12 @@ class Fullwave_1D():
         #print(psource)
         gaussian_beam = td.GaussianBeam(
             normal='z',
-            center=[0, 0, -z_size/2 + 0.5],
+            center=[0, 0, -z_size/2 + 0.9],
             source_time=td.GaussianPulse(fcen, fwidth),
             angle_theta=theta,
             angle_phi=0,
             direction='forward',
-            waist_radius= N * self.GP.period,
+            waist_radius= x_wgs * 10,
             pol_angle=np.pi/2) #S polarization.
         #x-z plane monitor.
         xz_mnt = td.FreqMonitor(center=[0, 0, 0], size=[x_size, 0, z_size], freqs=[fcen])
@@ -129,11 +134,12 @@ class Fullwave_1D():
         monitors = self.sim.monitors
         mdata = self.sim.data(monitors[0])
         Ey_xz_raw = mdata['E'][1,:,0,:,0].T
-        x_out_size = (2 * self.GP.Knn + 1 + self.N) * self.GP.period
+        out_phy_size = (2 * self.GP.Knn + 1 + self.N) * self.GP.period
         step1 = self.sim.grid.mesh_step[0]
-        r = int(round(x_out_size / step1/2))
-        c = Ey_xz_raw.shape[1]//2
-        Ey_xz_raw = Ey_xz_raw[:, c - r: c + r]
+        # r = int(round(x_out_size / step1/2))
+        # c = Ey_xz_raw.shape[1]//2
+        # print(r, c)
+        # Ey_xz_raw = Ey_xz_raw[:, c - r: c + r]
         phy_size_x = Ey_xz_raw.shape[1] * step1
         phy_size_y = Ey_xz_raw.shape[0] * step1
         index_near = int(round((1 + self.GP.wh)/step1))
@@ -143,9 +149,11 @@ class Fullwave_1D():
         Ey_far = Ey_xz_raw[index_far, :]
         Ey_in = Ey_xz_raw[index_in, :]
         num_steps2 = (2 * self.GP.Knn + 1 + self.N) * self.GP.res
-        data_near = resize_1d(Ey_near, step1, num_steps2)
-        data_far = resize_1d(Ey_far, step1, num_steps2)
-        data_in = resize_1d(Ey_in, step1, num_steps2)
+        xp = np.linspace(-phy_size_x/2, phy_size_x/2, num = Ey_xz_raw.shape[1])
+        x = np.linspace(-out_phy_size/2, out_phy_size/2, num_steps2)
+        data_near = resize_1d(Ey_near, x, xp)
+        data_far = resize_1d(Ey_far, x, xp)
+        data_in = resize_1d(Ey_in, x, xp)
         plt.figure(figsize= (12, 6))
         plt.imshow(np.abs(Ey_xz_raw), origin='lower', extent = (-phy_size_x/2, phy_size_x/2, -phy_size_y/2, phy_size_y/2))
         plt.xlabel("Position [um]")
@@ -167,70 +175,7 @@ class Fullwave_1D():
         plt.show()
         return Ey_xz_raw, data_near, data_far
 
-    # def vis_monitor(self,path = None, return_data = False):
-    #     if path:
-    #         if self.sim == None:
-    #             raise Exception("init sim first, then you can download data.")
-    #         self.sim.load_results(path + 'monitor_data.hdf5')
-    #     monitors = self.sim.monitors
-    #     mdata = self.sim.data(monitors[0])
-    #     Ey_xz_plane = mdata['E'][1,:,0,:,0]
-    #     index_focal = int(round((1 + self.GP.wh + self.prop_dis) * self.res))
-    #     I_focal = np.abs(Ey_xz_plane[:,index_focal])**2
-    #     stride = int(round(self.res / self.out_res))
-    #     Ey_xz_plane = Ey_xz_plane[::stride, ::stride].T
-    #     px = 1/self.res * np.arange(I_focal.size)
-    #     I_focal = I_focal[::stride]
-    #     px = px[::stride]
-    #     fig, ax = plt.subplots(1, 2, figsize=(12, 6))
-    #     #self.sim.viz_field_2D(monitors[0], ax=ax[0], cbar=True, comp='y', val='abs')
-    #     plot1 = ax[0].imshow(np.abs(Ey_xz_plane))
-    #     plt.colorbar(plot1, ax = ax[0])
-    #     ax[0].set_title("field amplitude.")
-    #     ax[1].plot(px, I_focal)
-    #     ax[1].set_xlabel("Position [um]")
-    #     ax[1].set_ylabel("Intensity")
-    #     ax[1].set_title("Focal plane intensity.")
-    #     plt.show()
-    #     if return_data:
-    #         return px, Ey_xz_plane, I_focal
-    #     return None
-    
-# def resize_2d(field, step1, step2):
-#     '''
-#       tooooooooo slow!
-#     input:
-#         field 2D data needed to be resampled.
-#         step1, current step size.
-#         step2, output step size.
-#     output:
-#         a dict, that ['Ey'] , ['X'], ['Y'], data, and coordinate.
-#     '''
-#     phy_size_x = field.shape[1] * step1
-#     phy_size_y = field.shape[0] * step1
-    
-#     x = np.linspace(0, phy_size_x, num = field.shape[1])
-#     y = np.linspace(0, phy_size_y, num = field.shape[0])
-#     X, Y = np.meshgrid(x, y)
-#     f_real = interpolate.interp2d(X, Y, np.real(field), kind='linear')
-#     f_imag = interpolate.interp2d(X, Y, np.imag(field), kind='linear')
-    
-#     x = np.arange(0, phy_size_x, step2)
-#     y = np.arange(0, phy_size_y, step2)
-#     X, Y = np.meshgrid(x, y)
-#     out_real = f_real(X, Y)
-#     out_img = f_imag(X, Y)
-#     out_field = out_real + 1j * out_img
-#     out = {}
-#     out['Ey'] = out_field
-#     out['X'] = X
-#     out['Y'] = Y
-#     return out
-
-def resize_1d(field, step1, num_steps2):
-    phy_size_x = field.shape[0] * step1
-    xp = np.linspace(-phy_size_x/2, phy_size_x/2, num = field.shape[0])
-    x = np.linspace(-phy_size_x/2, phy_size_x/2, num = num_steps2)
+def resize_1d(field, x, xp):
     out_field = np.interp(x, xp, field)
     out = {}
     out['Ey'] = out_field

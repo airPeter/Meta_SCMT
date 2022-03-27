@@ -37,9 +37,9 @@ class Fitting_K_matrix_1D():
         K_paras = {'nodes': nodes, 'layers': layers}
         np.save(self.path + "K_paras.npy", K_paras)
         if vis:
-            Y_pred = Y_pred.reshape(-1, self.Knn * 2 + 1, self.channels)
-            Y = Y.reshape(-1, self.Knn * 2 + 1, self.channels)
-            for dis in range(-self.Knn, self.Knn + 1):
+            Y_pred = Y_pred.reshape(-1, self.Knn * 2 + 2, self.channels)
+            Y = Y.reshape(-1, self.Knn * 2 + 2, self.channels)
+            for dis in range(-self.Knn, self.Knn + 2):
                 plt.figure()
                 for ch in range(self.channels):
                     dis_index = dis + self.Knn
@@ -74,7 +74,7 @@ class Fitting_K_matrix_1D():
             K_input = []
             for hi in tqdm(widths):
                 for hj in widths:
-                    for dis in range(-self.Knn, self.Knn + 1):
+                    for dis in range(-self.Knn, self.Knn + 2):
                         dis_norm = dis / self.Knn
                         K_input.append([hi,hj,dis_norm])
                         K_map_modes = []
@@ -98,7 +98,10 @@ class Fitting_K_matrix_1D():
             h: waveguide width
             m: mode
             dis = i - j: -Knn, -Knn - 1, ..., 0, 1, ... Knn
+            if dis == Knn + 1: k = 0. this is will be used in coalease K_stripped matrix to K_sparse matrix.
         '''
+        if dis == self.Knn + 1:
+            return 0
         if dis == 0:
             return 0
         hi_index = h2index(hi, self.dh)
