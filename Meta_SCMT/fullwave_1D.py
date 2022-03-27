@@ -138,7 +138,7 @@ class Fullwave_1D():
         data_far = resize_1d(Ey_far, x, xp)
         data_in = resize_1d(Ey_in, x, xp)
         plt.figure(figsize= (12, 6))
-        plt.imshow(self.eps_data,  origin='lower', cmap = 'binary')
+        plt.imshow(self.eps_data,  origin='lower', cmap = 'binary', extent = (-phy_size_x/2, phy_size_x/2, -phy_size_y/2, phy_size_y/2))
         plt.imshow(Iz_data, origin='lower', cmap = 'magma', extent = (-phy_size_x/2, phy_size_x/2, -phy_size_y/2, phy_size_y/2), alpha= 0.9)
         plt.xlabel("Position [um]")
         plt.ylabel("Position [um]")
