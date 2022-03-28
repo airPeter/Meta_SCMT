@@ -12,8 +12,9 @@ class Fullwave_1D():
         self.GP =GP
         self.sim = None
 
-    def init_sim(self, prop_dis, N, hs, res = None, theta = 0, empty = False, backend = 'meep'):
+    def init_sim(self, prop_dis, N, hs, res = None, theta = 0, empty = False, backend = 'meep', vis_path = None):
         self.backend = backend
+        self.vis_path = vis_path
         if backend == 'meep':
             self.meep_init_sim(prop_dis, N, hs, res, theta, empty)
         elif backend == 'tidy3d':
@@ -102,7 +103,10 @@ class Fullwave_1D():
         self.eps_data = self.eps_data.transpose()
         plt.figure()
         plt.imshow(self.eps_data,  origin='lower', cmap = 'binary')
-        plt.show()
+        if self.vis_path is None:
+            plt.show()
+        else:
+            plt.savefig(self.vis_path + "structure.png")
         return None   
 
     def run(self):
@@ -144,7 +148,10 @@ class Fullwave_1D():
         plt.ylabel("Position [um]")
         plt.colorbar()
         plt.title("Intensity.")
-        plt.show()
+        if self.vis_path is None:
+            plt.show()
+        else:
+            plt.savefig(self.vis_path + "Iz.png")
         
         fig, ax = plt.subplots(1, 3, figsize=(18, 6))
         #self.sim.viz_field_2D(monitors[0], ax=ax[0], cbar=True, comp='y', val='abs')
@@ -157,7 +164,10 @@ class Fullwave_1D():
         ax[2].plot(data_in['x'], np.abs(data_in['Ey'])**2, label = 'input intensity')
         ax[2].set_xlabel("Position [um]")
         ax[2].legend()
-        plt.show()
+        if self.vis_path is None:
+            plt.show()
+        else:
+            plt.savefig(self.vis_path + "near_and_far_field.png")
         return ez_data, data_near, data_far
     
     def tidy3d_init_sim(self, prop_dis, N, hs, res = None, theta = 0, empty = False):
@@ -255,7 +265,10 @@ class Fullwave_1D():
                             pml_layers=pml_layers)    
         _, ax = plt.subplots(1, 1, figsize=(6, 6))
         self.sim.viz_mat_2D(normal='y', ax=ax)
-        plt.show()
+        if self.vis_path is None:
+            plt.show()
+        else:
+            plt.savefig(self.vis_path + "structure.png")
         return None   
     
     def upload(self, task_name):
@@ -321,7 +334,10 @@ class Fullwave_1D():
         plt.xlabel("Position [um]")
         plt.ylabel("Position [um]")
         plt.colorbar()
-        plt.show()
+        if self.vis_path is None:
+            plt.show()
+        else:
+            plt.savefig(self.vis_path + "Iz.png")
         
         fig, ax = plt.subplots(1, 3, figsize=(18, 6))
         #self.sim.viz_field_2D(monitors[0], ax=ax[0], cbar=True, comp='y', val='abs')
@@ -334,7 +350,10 @@ class Fullwave_1D():
         ax[2].plot(data_in['x'], np.abs(data_in['Ey'])**2, label = 'input intensity')
         ax[2].set_xlabel("Position [um]")
         ax[2].legend()
-        plt.show()
+        if self.vis_path is None:
+            plt.show()
+        else:
+            plt.savefig(self.vis_path + "near_and_far_field.png")
         return Ey_xz_raw, data_near, data_far
 
 def resize_1d(field, x, xp):
