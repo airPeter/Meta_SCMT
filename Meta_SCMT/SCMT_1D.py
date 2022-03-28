@@ -8,6 +8,7 @@ from torch.utils.tensorboard import SummaryWriter
 from .utils import gen_decay_rate
 from tqdm import tqdm
 import warnings
+import math
 class SCMT_1D():
     def __init__(self, GP):
         self.GP = GP
@@ -54,7 +55,78 @@ class SCMT_1D():
         E_out = E_out.cpu().detach().numpy()
         return E_out
     
-    def optimize(self, notes, steps, lr = 0.01, theta = 0):
+    def optimize(self, notes, steps, lr = 0.01, theta = 0.0):
+        if type(theta) is tuple:
+            self.optimize_range_theta(notes, steps, lr, theta)
+            print("the target is to make a perfect lens within the given incident angle range.")
+        else:
+            self.optimize_fix_theta(notes, steps, lr, theta)
+            print("the target is to maximize the intensity of the center.")
+        return None
+    
+    def optimize_range_theta(self, notes, steps, lr = 0.01, theta = (-np.pi/6, np.pi/6)):
+        print("optimize lens, incident planewave angle range: " + str(theta))
+        if not self.far_field:
+            raise Exception("Should initalize model with far_field=True")
+        if self.COUPLING:
+            out_path = 'output_cmt/'
+        else:
+            out_path = 'output_no_coupling/'
+        if not os.path.exists(out_path):
+            os.mkdir(out_path)
+        out_path = out_path + notes + '/'
+        writer = SummaryWriter(out_path + 'summary1')
+        optimizer = optim.Adam(self.model.parameters(), lr=lr)
+        decay_steps = steps // 10
+        decay_rate = gen_decay_rate(steps, decay_steps)
+        my_lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=decay_rate)
+        self.model.train()
+
+        radius = self.N * self.GP.period/2
+        NA =  radius/ np.sqrt(radius**2 + self.prop_dis**2)
+        target_sigma = self.GP.lam / (2 * NA) / self.GP.dx
+        print("the numerical aperture: ", NA, "target spot size (number of points):", target_sigma)
+        for step in tqdm(range(steps + 1)):
+            #rand_theta = np.random.normal(loc = (theta[0] + theta[1])/2, scale = (theta[1] - theta[0])/2)
+            rand_theta = np.random.uniform(theta[0], theta[1])
+            center = int(self.total_size//2 + self.prop_dis * np.tan(rand_theta)/self.GP.dx)
+            X = np.arange(self.total_size) * self.GP.dx
+            E0 = np.exp(1j * self.GP.k * np.sin(rand_theta) * X)
+            E0 = torch.tensor(E0, dtype = torch.complex64)
+            E0 = E0.to(self.device)
+            # Compute prediction error
+            If = self.model(E0)
+            loss = loss_max_center(If, center, target_sigma)
+            # Backpropagation
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+            #grad = model.metalayer1.n_eff_paras.detach()
+            #grad_peek(grad)
+            if step % decay_steps == 0 and step != 0:
+                my_lr_scheduler.step()
+                
+            if step % decay_steps == 0:    # every 1000 mini-batches...
+                target_If = gaussian_func(np.arange(self.total_size), center, target_sigma)
+                # ...log the running loss
+                writer.add_scalar('training loss',
+                                scalar_value = loss.item(), global_step = step)
+                writer.add_figure('hs',
+                                plot_hs(self.model.metalayer1.hs.cpu().detach().numpy()),
+                                global_step= step)
+                writer.add_figure('If',
+                                plot_If(If, target_If),
+                                global_step= step)       
+                # loss = loss.item()
+                # loss_list.append(loss)
+                # print(f"loss: {loss:>7f}  [{step:>5d}/{train_steps:>5d}]")
+        print("final lr:", my_lr_scheduler.get_last_lr())
+        out_hs = self.model.metalayer1.hs.cpu().detach().numpy()
+        np.savetxt(out_path + 'waveguide_widths.csv', out_hs, delimiter=",")
+        print('parameters saved in.', out_path)
+        return None
+    
+    def optimize_fix_theta(self, notes, steps, lr = 0.01, theta = 0.0):
         if not self.far_field:
             raise Exception("Should initalize model with far_field=True")
         if self.COUPLING:
@@ -104,7 +176,7 @@ class SCMT_1D():
                 writer.add_figure('If',
                                 plot_If(If),
                                 global_step= step)       
-                running_loss = 0.0
+
                 # loss = loss.item()
                 # loss_list.append(loss)
                 # print(f"loss: {loss:>7f}  [{step:>5d}/{train_steps:>5d}]")
@@ -167,15 +239,20 @@ def plot_hs(out_hs):
 
 def plot_If(If, target_If = None):
     out_If = If.cpu().detach().numpy()
-    fig = plt.figure()
-    plt.plot(out_If, label = 'output')
+    fig, axs = plt.subplots(1, 1, figsize = (8, 6))
+    plt.ioff()
+    axs.plot(out_If, label = 'output')
     #print('sum of intensity:', out_If.sum())
     if not (target_If is None):
-        plt.plot(target_If, label = 'target')
-    plt.legend()
+        target_If = target_If * out_If.max()
+        axs.plot(target_If, label = 'target normalized by max(out_If)')
+    axs.legend()
     #plt.ylabel('intensity normalized by max')
     return fig
 
 def loss_max_center(If, center, max_length):
     intensity = torch.sum(torch.abs(If[center - int(max_length//2): center + int(max_length//2)]))
     return - intensity
+
+def gaussian_func(x, mu, sigma):
+    return np.exp(- (x - mu)**2 / (2 * sigma**2))
