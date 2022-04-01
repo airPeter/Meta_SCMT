@@ -19,7 +19,7 @@ class Fullwave_1D():
             self.meep_init_sim(prop_dis, N, hs, res, theta, empty)
         elif backend == 'tidy3d':
             self.tidy3d_init_sim(prop_dis, N, hs, res, theta, empty)
-            
+
     def meep_init_sim(self, prop_dis, N, hs, res = None, theta = 0, empty = False):
         '''
         input:

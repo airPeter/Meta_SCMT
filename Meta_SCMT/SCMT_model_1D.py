@@ -265,3 +265,38 @@ def gen_G(k, prop, total_size, dx):
     v = 1
     G = -1j * k / 4 * special.hankel1(v, k * r) * prop / r * dx
     return G
+
+def propagator(k, prop, total_size, dx):
+    '''
+        prop distance in free space
+    '''
+    def W(x, y, z, wavelength):
+        r = np.sqrt(x*x+y*y+z*z)
+        #w = z/r**2*(1/(np.pi*2*r)+1/(relative_wavelength*1j))*np.exp(1j*2*np.pi*r/relative_wavelength)
+        w = z/(r**2)*(1/(wavelength*1j))*np.exp(1j*2*np.pi*r/wavelength)
+        return w
+    #plane_size: the numerical size of plane, this is got by (physical object size)/(grid)
+
+    x = np.arange(-(total_size-1), total_size,1) * dx
+    lam = 2 * np.pi / k
+    G = W(x, 0, prop, lam)
+    #solid angle Sigma = integral(integral(sin(theta))dthtea)dphi
+    # theta = np.arctan(total_size * dx/prop)
+    # Sigma = 2 * np.pi * (1 - np.cos(theta))
+    # G_norm = (np.abs(G)**2).sum() * 4 * np.pi / Sigma 
+    # print(f"Free space energy conservation normalization G_norm: {G_norm:.2f}")
+    # G = G / G_norm
+    return G
+
+
+class Ideal_model(nn.Module):
+    def __init__(self, prop_dis, GP, total_size):
+        super(Ideal_model, self).__init__()
+        self.prop = prop_dis
+        self.phase = torch.nn.Parameter(torch.empty((total_size,), dtype = torch.float))
+        self.freelayer1 = freespace_layer(2 * np.pi / GP.lam, self.prop, total_size, GP.dx)
+    def forward(self, E0):
+        E = E0 * torch.exp(1j * self.phase)
+        Ef = self.freelayer1(E)
+        If = torch.abs(Ef)**2
+        return If

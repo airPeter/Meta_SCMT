@@ -30,6 +30,7 @@ from .SCMT_2D import SCMT_2D
 from .fullwave_2D import Fullwave_2D
 from .PBA_design import PBA
 from .ideal_meta import Ideal_meta
+from .ideal_meta_1D import Ideal_meta_1D
 class GP():
     def __init__(self,dim, modes, period, res, downsample_ratio, wh, lam, n_sub, n_wg, h_min, h_max, dh, path = 'sim_cache/'):
         self.dim = dim #dim = 1 or 2.
@@ -84,6 +85,7 @@ class Sim():
             self.scmt = SCMT_1D(self.GP)
             self.fullwave = Fullwave_1D(self.GP)
             self.PBA = PBA(self.GP, 1)
+            self.ideal_meta = Ideal_meta_1D(self.GP)
         if self.GP.dim == 2:
             if self.GP.modes > 1:
                 raise Exception("Currently, only support modes = 1 for 2 dimensional waveguide.")
