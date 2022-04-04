@@ -1,2 +1,2 @@
 from .simulator import Sim
-from .simulator import Sim_Lam
+from .simulator_lam import SimLam

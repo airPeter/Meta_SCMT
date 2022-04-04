@@ -40,6 +40,10 @@ class SCMT_1D():
         return None
     
     def forward(self):
+        '''
+        output:
+            if far_field == True, output is intensity otherwise is field.
+        '''
         #incident field plane wave
         # X = np.arange(self.total_size) * self.GP.dx
         # E0 = np.exp(1j * self.GP.k * np.sin(theta) * X)
@@ -48,12 +52,12 @@ class SCMT_1D():
         E0 = E0.to(self.device)
         E_out = self.model(E0)
         if self.far_field:
-            E_out = E_out.cpu().detach().numpy()
+            E_out = [E.cpu().detach().numpy() for E in E_out]
         else:
             E_out = [E.cpu().detach().numpy() for E in E_out]
         return E_out
     
-    def optimize(self, notes, steps, lr = 0.01):
+    def optimize(self, notes, steps, lr = 0.01, minmax = False):
         if not self.far_field:
             raise Exception("Should initalize model with far_field=True")
         if self.COUPLING:
@@ -82,8 +86,16 @@ class SCMT_1D():
         center = int(self.total_size//2)
         for step in tqdm(range(steps + 1)):
             # Compute prediction error
-            If = self.model(E0)
-            loss = loss_max_center(If, center, target_sigma)
+            Ifs = self.model(E0)
+            if minmax:
+                losses = [loss_max_center(If, center, target_sigma) for If in Ifs]
+                loss = - np.inf
+                for tmp_loss in losses:
+                    if tmp_loss > loss:
+                        loss = tmp_loss
+            else:
+                idx = np.random.randint(0, len(self.GP.lams))
+                loss = loss_max_center(Ifs[idx], center, target_sigma)
             # Backpropagation
             optimizer.zero_grad()
             loss.backward()
@@ -101,10 +113,10 @@ class SCMT_1D():
                 writer.add_figure('hs',
                                 plot_hs(self.model.metalayer1.hs.cpu().detach().numpy()),
                                 global_step= step)
-                writer.add_figure('If',
-                                plot_If(If),
-                                global_step= step)       
-
+                for i, If in enumerate(Ifs):
+                    writer.add_figure(f"If, lam: {self.GP.lams[i]} um",
+                                    plot_If(If),
+                                    global_step= step)       
                 # loss = loss.item()
                 # loss_list.append(loss)
                 # print(f"loss: {loss:>7f}  [{step:>5d}/{train_steps:>5d}]")
@@ -145,10 +157,14 @@ class SCMT_1D():
     def vis_field(self, E):
         px = (np.arange(self.total_size) - self.total_size//2) * self.GP.dx
         if self.far_field:
-            plt.plot(px, E, label = 'intensity')
-            plt.legend()
-            plt.xlabel("postion [um]")
-            plt.show()
+            for i, lam in enumerate(self.GP.lams):
+                Ii = E[i]
+                plt.figure()
+                plt.plot(px, Ii, label = 'intensity')
+                plt.legend()
+                plt.xlabel("postion [um]")
+                plt.title("wavelength: " + str(lam))
+                plt.show()
         else:
             for i, lam in enumerate(self.GP.lams):
                 Ei = E[i]

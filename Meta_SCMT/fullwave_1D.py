@@ -18,6 +18,8 @@ class Fullwave_1D():
         if backend == 'meep':
             self.meep_init_sim(prop_dis, N, hs, res, theta, empty)
         elif backend == 'tidy3d':
+            if theta != 0:
+                warnings.warn("should use meep for theta!=0. For the tidy3d, we use gaussian beam with a super large waist, which is very dirty.")
             self.tidy3d_init_sim(prop_dis, N, hs, res, theta, empty)
 
     def meep_init_sim(self, prop_dis, N, hs, res = None, theta = 0, empty = False):
@@ -299,7 +301,7 @@ class Fullwave_1D():
         return None
     
     def vis_monitor(self,path = None):
-        if self.backend != 'meep':
+        if self.backend != 'tidy3d':
             raise Exception("only call fullwave.vis() for meep backend.\
                             for tidy3d call .vis_monitor().")
         if path:

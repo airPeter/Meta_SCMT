@@ -20,8 +20,8 @@ class Metalayer(torch.nn.Module):
         self.sig = torch.nn.Sigmoid()
         self.lams = self.GP.lams
         meta_subs = []
-        for lam in self.lams:
-            meta_subs.append(Metalayer_sub(self.GP, self.COUPLING, N, 2 * np.pi / lam))
+        for meta_idx in range(len(self.lams)):
+            meta_subs.append(Metalayer_sub(self.GP, self.COUPLING, N, meta_idx))
         self.meta_subs = nn.ModuleList(meta_subs)
         
     def forward(self, E0):
@@ -34,6 +34,8 @@ class Metalayer(torch.nn.Module):
             Ens.append(metasub(E0, self.hs))
         return Ens
     def reset(self):
+        #nn.init_normal_(self.phase, 0, 0.02)
+        torch.nn.init.constant_(self.h_paras, val = 0.0)
         if len(self.paths) != len(self.lams):
             raise Exception("number of paths != number of lams.")
         for i, path in enumerate(self.paths):
@@ -41,7 +43,7 @@ class Metalayer(torch.nn.Module):
             
 #sub module for each wavelength
 class Metalayer_sub(torch.nn.Module):
-    def __init__(self, GP, COUPLING, N, k):
+    def __init__(self, GP, COUPLING, N, meta_idx):
         '''
 
         '''
@@ -50,14 +52,16 @@ class Metalayer_sub(torch.nn.Module):
         self.neffs = None
         self.GP = GP
         self.wh = GP.wh
-        self.k = k
-        neff_paras = np.load(self.GP.path + "neff_paras.npy", allow_pickle= True)
+        path = GP.paths[meta_idx]
+        lam = GP.lams[meta_idx]
+        self.k = 2 * np.pi / lam
+        neff_paras = np.load(path + "neff_paras.npy", allow_pickle= True)
         neff_paras = neff_paras.item()
-        C_paras = np.load(self.GP.path + "C_paras.npy", allow_pickle= True)
+        C_paras = np.load(path + "C_paras.npy", allow_pickle= True)
         C_paras = C_paras.item()
-        K_paras = np.load(self.GP.path + "K_paras.npy", allow_pickle= True)
+        K_paras = np.load(path + "K_paras.npy", allow_pickle= True)
         K_paras = K_paras.item()
-        E_paras = np.load(self.GP.path + "E_paras.npy", allow_pickle= True)
+        E_paras = np.load(path + "E_paras.npy", allow_pickle= True)
         E_paras = E_paras.item()
         self.neffnn = gen_neff(GP.modes, neff_paras['nodes'], neff_paras['layers'])
         self.genc = gen_C(GP.modes, C_paras['nodes'], C_paras['layers'], N, GP.Knn)
@@ -120,10 +124,10 @@ class SCMT_Model(nn.Module):
         Efs = []
         for i in range(len(self.freelayers)):
             Efs.append(self.freelayers[i](Ens[i]))
-        Ef = Efs[0]
-        for tmp_E in Efs[1:]:
-            Ef = Ef + tmp_E
-        If = torch.abs(Ef)**2
+        # If = torch.abs(Efs[0])**2
+        # for tmp_E in Efs[1:]:
+        #     If = If + torch.abs(tmp_E)**2
+        If = [torch.abs(E)**2 for E in Efs]
         return If
     def reset(self):
         self.metalayer1.reset()

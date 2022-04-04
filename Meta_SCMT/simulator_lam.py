@@ -3,7 +3,7 @@
 '''
 import numpy as np
 import os
-from .SCMT_1D_lam import SCMT_1D_lam
+from .SCMT_1D_lam import SCMT_1D
 class GP():
     def __init__(self,dim, modes, period, res, downsample_ratio, wh, lams, n_sub, n_wg, h_min, h_max, dh, paths):
         self.dim = dim #dim = 1 or 2.
@@ -25,15 +25,16 @@ class GP():
         self.h_min = h_min #h_min and h_max define the range of the width of waveguide.
         self.h_max = h_max
         self.dh = dh #the step size of h.
-        self.paths = paths # a list of path            
-        if not os.path.exists(paths):
-            os.mkdir(paths)
+        self.paths = paths # a list of path 
+        for tmp_path in self.paths:           
+            if not os.path.exists(tmp_path):
+                raise Exception(tmp_path, " not exist. gen the cache using single lam model first. then run the multi lam model.")
     def __eq__(self, other) : 
         return self.__dict__ == other.__dict__
     
-class Sim():
+class SimLam():
     def __init__(self,**keyword_args) -> None:
         self.GP = GP(**keyword_args)
         if self.GP.dim == 1:
-            self.scmt = SCMT_1D_lam(self.GP)
+            self.scmt = SCMT_1D(self.GP)
 
