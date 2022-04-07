@@ -1,3 +1,4 @@
+from turtle import up
 import numpy as np
 import matplotlib.pyplot as plt
 from .SCMT_model_1D import Metalayer, SCMT_Model
@@ -55,16 +56,16 @@ class SCMT_1D():
         E_out = E_out.cpu().detach().numpy()
         return E_out
     
-    def optimize(self, notes, steps, lr = 0.01, theta = 0.0):
+    def optimize(self, notes, steps, lr = 0.01, theta = 0.0, minmax = True, substeps = 5):
         if type(theta) is tuple:
-            self.optimize_range_theta(notes, steps, lr, theta)
+            self.optimize_range_theta(notes, steps, lr, theta, minmax = True, substeps = 5)
             print("the target is to make a perfect lens within the given incident angle range.")
         else:
             self.optimize_fix_theta(notes, steps, lr, theta)
             print("the target is to maximize the intensity of the center.")
         return None
     
-    def optimize_range_theta(self, notes, steps, lr = 0.01, theta = (-np.pi/6, np.pi/6)):
+    def optimize_range_theta(self, notes, steps, lr = 0.01, theta = (-np.pi/6, np.pi/6), minmax = True, substeps = 5):
         print("optimize lens, incident planewave angle range: " + str(theta))
         if not self.far_field:
             raise Exception("Should initalize model with far_field=True")
@@ -86,21 +87,53 @@ class SCMT_1D():
         NA =  radius/ np.sqrt(radius**2 + self.prop_dis**2)
         target_sigma = self.GP.lam / (2 * NA) / self.GP.dx
         print("the numerical aperture: ", NA, "target spot size (number of points):", target_sigma)
+        
+        
         for step in tqdm(range(steps + 1)):
             #rand_theta = np.random.normal(loc = (theta[0] + theta[1])/2, scale = (theta[1] - theta[0])/2)
-            rand_theta = np.random.uniform(theta[0], theta[1])
-            center = int(self.total_size//2 + self.prop_dis * np.tan(rand_theta)/self.GP.dx)
-            X = np.arange(self.total_size) * self.GP.dx
-            E0 = np.exp(1j * self.GP.k * np.sin(rand_theta) * X)
-            E0 = torch.tensor(E0, dtype = torch.complex64)
-            E0 = E0.to(self.device)
-            # Compute prediction error
-            If = self.model(E0)
-            loss = loss_max_center(If, center, target_sigma)
-            # Backpropagation
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
+            if minmax:
+                # def custom_optimizer(grad, paras, lr):
+                #     return paras - lr * grad
+                hs_grads = []
+                sub_losses = []
+                for _ in range(substeps):
+                    rand_theta = np.random.uniform(theta[0], theta[1])
+                    center = int(self.total_size//2 + self.prop_dis * np.tan(rand_theta)/self.GP.dx)
+                    X = np.arange(self.total_size) * self.GP.dx
+                    E0 = np.exp(1j * self.GP.k * np.sin(rand_theta) * X)
+                    E0 = torch.tensor(E0, dtype = torch.complex64)
+                    E0 = E0.to(self.device)
+                    # Compute prediction error
+                    If = self.model(E0)
+                    loss = loss_max_center(If, center, target_sigma)
+                    sub_losses.append(loss.cpu().detach().item())
+                    self.model.zero_grad()
+                    loss.backward()
+                    with torch.no_grad():
+                        hs_grads.append(self.model.metalayer1.h_paras.grad)
+                idx = np.argmax(np.array(sub_losses))
+                grad = hs_grads[idx]
+                self.model.metalayer1.h_paras.grad.copy_(grad)
+                optimizer.step()
+                #with torch.no_grad():
+                    #grad = hs_grads[idx]
+                    #updated_paras = custom_optimizer(grad, self.model.metalayer1.h_paras, lr)
+                    #self.model.metalayer1.h_paras.copy_(updated_paras)
+                        
+            else:
+                rand_theta = np.random.uniform(theta[0], theta[1])
+                center = int(self.total_size//2 + self.prop_dis * np.tan(rand_theta)/self.GP.dx)
+                X = np.arange(self.total_size) * self.GP.dx
+                E0 = np.exp(1j * self.GP.k * np.sin(rand_theta) * X)
+                E0 = torch.tensor(E0, dtype = torch.complex64)
+                E0 = E0.to(self.device)
+                # Compute prediction error
+                If = self.model(E0)
+                loss = loss_max_center(If, center, target_sigma)
+                # Backpropagation
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
             #grad = model.metalayer1.n_eff_paras.detach()
             #grad_peek(grad)
             if step % decay_steps == 0 and step != 0:
@@ -120,7 +153,10 @@ class SCMT_1D():
                 # loss = loss.item()
                 # loss_list.append(loss)
                 # print(f"loss: {loss:>7f}  [{step:>5d}/{train_steps:>5d}]")
-        print("final lr:", my_lr_scheduler.get_last_lr())
+        if minmax:
+            print("final lr:", lr)
+        else:
+            print("final lr:", my_lr_scheduler.get_last_lr())
         out_hs = self.model.metalayer1.hs.cpu().detach().numpy()
         np.savetxt(out_path + 'waveguide_widths.csv', out_hs, delimiter=",")
         print('parameters saved in.', out_path)

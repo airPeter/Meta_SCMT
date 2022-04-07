@@ -99,7 +99,7 @@ class Fullwave_1D():
         #cell_vol = mp.Volume(mp.Vector3(), size=cell_size)
         self.dft_obj = self.sim.add_dft_fields([mp.Ez], fcen, 0, 1, where=nonpml_vol)  
         self.sim.init_sim()
-        self.stop_condition_func = mp.stop_when_fields_decayed(dt=prop_dis * 5, c=mp.Ez, pt=mp.Vector3(0, y_plane + self.GP.wh + prop_dis), decay_by=1e-5)
+        self.stop_condition_func = mp.stop_when_fields_decayed(dt=prop_dis, c=mp.Ez, pt=mp.Vector3(0, y_plane + self.GP.wh + prop_dis), decay_by=1e-5)
         
         self.eps_data = self.sim.get_array(vol = nonpml_vol, component=mp.Dielectric)
         self.eps_data = self.eps_data.transpose()
