@@ -121,8 +121,10 @@ class SCMT_1D():
                 # loss_list.append(loss)
                 # print(f"loss: {loss:>7f}  [{step:>5d}/{train_steps:>5d}]")
         print("final lr:", my_lr_scheduler.get_last_lr())
+        out_pos = (np.arange(self.N) - (self.N - 1)/2) * self.GP.period
         out_hs = self.model.metalayer1.hs.cpu().detach().numpy()
-        np.savetxt(out_path + 'waveguide_widths.csv', out_hs, delimiter=",")
+        out_data = np.c_[out_pos.reshape(-1,1), out_hs.reshape(-1, 1)]
+        np.savetxt(out_path + 'waveguide_widths.csv', out_data, delimiter=",")
         print('parameters saved in.', out_path)
         return None
 
