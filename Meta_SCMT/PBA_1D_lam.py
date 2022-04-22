@@ -3,7 +3,7 @@
 '''
 import numpy as np
 import matplotlib.pyplot as plt
-from .SCMT_model_1D_lam import Metalayer, SCMT_Model
+from .PBA_model_1D_lam import PBA_model
 import torch
 from torch import optim
 import os
@@ -11,16 +11,15 @@ from torch.utils.tensorboard import SummaryWriter
 from .utils import gen_decay_rate
 from tqdm import tqdm
 import warnings
-class SCMT_1D():
+
+class PBA_1D():
     def __init__(self, GP):
         self.GP = GP
         self.model = None
-        self.COUPLING = None
-        self.Euler_steps = None
         self.N = None
         self.prop_dis = None
         
-    def init_model(self, N, prop_dis, COUPLING = True, init_hs = None, far_field = False):
+    def init_model(self, N, prop_dis, init_hs = None, far_field = False):
         '''
             the layers will be used when re building the fitted model. If you change any of this default values when you do the fitting.
             you should also change at here.
@@ -29,12 +28,12 @@ class SCMT_1D():
         self.prop_dis = prop_dis
         self.total_size = (self.N + 2 * self.GP.Knn + 1) * self.GP.res
         self.far_field = far_field
-        self.COUPLING = COUPLING
+
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         if far_field:
-            self.model = SCMT_Model(self.prop_dis, self.GP, COUPLING, N)
+            self.model = PBA_model(self.prop_dis, self.GP, self.N, self.total_size, near_field = False)
         else:
-            self.model = Metalayer(self.GP, COUPLING, N)
+            self.model = PBA_model(self.prop_dis, self.GP, self.N, self.total_size, near_field = True)
         self.init_paras(self.model, init_hs)
         self.model = self.model.to(self.device)
         return None
@@ -44,9 +43,6 @@ class SCMT_1D():
         output:
             if far_field == True, output is intensity otherwise is field.
         '''
-        #incident field plane wave
-        # X = np.arange(self.total_size) * self.GP.dx
-        # E0 = np.exp(1j * self.GP.k * np.sin(theta) * X)
         E0 = np.ones((self.total_size,))
         E0 = torch.tensor(E0, dtype = torch.complex64)
         E0 = E0.to(self.device)
@@ -57,10 +53,7 @@ class SCMT_1D():
     def optimize(self, notes, steps, lr = 0.01, minmax = False):
         if not self.far_field:
             raise Exception("Should initalize model with far_field=True")
-        if self.COUPLING:
-            out_path = 'output_cmt/'
-        else:
-            out_path = 'output_no_coupling/'
+        out_path = 'output_PBA/'
         if not os.path.exists(out_path):
             os.mkdir(out_path)
         out_path = out_path + notes + '/'
@@ -70,16 +63,13 @@ class SCMT_1D():
         decay_rate = gen_decay_rate(steps, decay_steps)
         my_lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=decay_rate)
         self.model.train()
-
-        # X = np.arange(self.total_size) * self.GP.dx
-        # E0 = np.exp(1j * self.GP.k * np.sin(theta) * X)
         E0 = np.ones((self.total_size,))
         E0 = torch.tensor(E0, dtype = torch.complex64)
         E0 = E0.to(self.device)
         radius = self.N * self.GP.period/2
         NA =  radius/ np.sqrt(radius**2 + self.prop_dis**2)
         target_sigma = max(self.GP.lams) / (2 * NA) / self.GP.dx
-        print("the numerical aperture: ", NA, "target spot size for max[lams], (number of points):", target_sigma)
+        print("the numerical aperture: ", NA, "target spot size (number of points):", target_sigma)
         center = int(self.total_size//2)
         for step in tqdm(range(steps + 1)):
             # Compute prediction error
@@ -93,7 +83,7 @@ class SCMT_1D():
             else:
                 idx = np.random.randint(0, len(self.GP.lams))
                 loss = loss_max_center(Ifs[idx], center, target_sigma)
-            # Backpropagation
+                
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
@@ -108,18 +98,19 @@ class SCMT_1D():
                 writer.add_scalar('training loss',
                                 scalar_value = loss.item(), global_step = step)
                 writer.add_figure('hs',
-                                plot_hs(self.model.metalayer1.hs.cpu().detach().numpy()),
+                                plot_hs(self.model.hs.cpu().detach().numpy()),
                                 global_step= step)
                 for i, If in enumerate(Ifs):
                     writer.add_figure(f"If, lam: {self.GP.lams[i]} um",
                                     plot_If(If),
                                     global_step= step)       
+
                 # loss = loss.item()
                 # loss_list.append(loss)
                 # print(f"loss: {loss:>7f}  [{step:>5d}/{train_steps:>5d}]")
         print("final lr:", my_lr_scheduler.get_last_lr())
         out_pos = (np.arange(self.N) - (self.N - 1)/2) * self.GP.period
-        out_hs = self.model.metalayer1.hs.cpu().detach().numpy()
+        out_hs = self.model.hs.cpu().detach().numpy()
         out_data = np.c_[out_pos.reshape(-1,1), out_hs.reshape(-1, 1)]
         np.savetxt(out_path + 'waveguide_widths.csv', out_data, delimiter=",")
         print('parameters saved in.', out_path)
@@ -144,10 +135,7 @@ class SCMT_1D():
             init_hs_para = np.log(hs_paras / (1 - hs_paras)) 
             init_hs_para = torch.tensor(init_hs_para, dtype = torch.float)
             state_dict = model.state_dict()
-            if self.far_field:
-                state_dict['metalayer1.h_paras'] = init_hs_para
-            else:
-                state_dict['h_paras'] = init_hs_para
+            state_dict['h_paras'] = init_hs_para
             model.load_state_dict(state_dict)
             #with torch.no_grad():
             #    model.metalayer1.h_paras.data = h_paras_initial

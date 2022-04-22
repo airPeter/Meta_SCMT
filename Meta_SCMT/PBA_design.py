@@ -7,7 +7,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 import grcwa
-from .utils import lens_2D, lens_1D
+from .utils import lens_2D, lens_1D, Model, train
+import torch
 #grcwa.set_backend('autograd')  # important!!
 grcwa.set_backend('numpy')
 
@@ -16,6 +17,7 @@ class PBA():
         self.GP = GP
         self.dim = dim # dim = 1 or 2.
         self.width_phase_map = None
+        self.model = None
         
     def create_sim(self, width):   
         # set up objective function, x is the dielctric constant on the 2D grids, of size Nx*Ny
@@ -96,6 +98,32 @@ class PBA():
         np.save(self.GP.path + "rcwa_width_phase_map.npy", width_phase_map)
         print("PBA width phase map saved.")
         self.width_phase_map = width_phase_map
+        return None
+
+    def fit(self, layers = 6, nodes = 64, steps = 1000, lr = 0.001, vis = True, load = True):
+        if load:
+            self.width_phase_map = np.load(self.GP.path + "rcwa_width_phase_map.npy")
+        else:
+            if self.width_phase_map is None:
+                self.gen_lib()
+        X, Y = self.width_phase_map[0], self.width_phase_map[1]
+        X = X.reshape(-1, 1)
+        Y = Y.reshape(-1, 1)
+        self.model = Model(1, 1, layers= layers, nodes = nodes)
+        batch_size = 512
+        Y_pred = train(self.model, X, Y, steps, lr, batch_size)
+        torch.save(self.model.state_dict(), self.GP.path + "fitting_PBA_state_dict")
+        paras = {'nodes': nodes, 'layers': layers}
+        np.save(self.GP.path + "PBA_paras.npy", paras)
+        print("model saved.")
+        if vis:
+            plt.figure()
+            plt.plot(X, Y, label = "ground truth")
+            plt.plot(X, Y_pred, linestyle = '--', label = "predicted")
+            plt.legend()
+            plt.xlabel("widths [um]")
+            plt.ylabel("phase")
+            plt.show()
         return None
     
     def design_lens(self, N, focal_length, load = False, vis = True):

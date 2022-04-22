@@ -29,6 +29,7 @@ from .fitting_K_matrix_2D import Fitting_K_matrix_2D
 from .SCMT_2D import SCMT_2D
 from .fullwave_2D import Fullwave_2D
 from .PBA_design import PBA
+from .PBA_1D import PBA_1D
 from .ideal_meta import Ideal_meta
 from .ideal_meta_1D import Ideal_meta_1D
 class GP():
@@ -85,6 +86,7 @@ class Sim():
             self.scmt = SCMT_1D(self.GP)
             self.fullwave = Fullwave_1D(self.GP)
             self.PBA = PBA(self.GP, 1)
+            self.pba_opt = PBA_1D(self.GP)
             self.ideal_meta = Ideal_meta_1D(self.GP)
         if self.GP.dim == 2:
             if self.GP.modes > 1:
