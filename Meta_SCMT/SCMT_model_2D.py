@@ -300,11 +300,11 @@ def propagator(prop, lam, total_size, dx):
     coord_x, coord_y = np.meshgrid(x,y, sparse = False)
     G = W(coord_x, coord_y, prop, lam)
     #solid angle Sigma = integral(integral(sin(theta))dthtea)dphi
-    theta = np.arctan(total_size * dx/prop)
-    Sigma = 2 * np.pi * (1 - np.cos(theta))
-    G_norm = (np.abs(G)**2).sum() * 4 * np.pi / Sigma 
-    print(f"Free space energy conservation normalization G_norm: {G_norm:.2f}")
-    G = G / G_norm
+    # theta = np.arctan(total_size * dx/prop)
+    # Sigma = 2 * np.pi * (1 - np.cos(theta))
+    # G_norm = (np.abs(G)**2).sum() * 4 * np.pi / Sigma 
+    # print(f"Free space energy conservation normalization G_norm: {G_norm:.2f}")
+    # G = G / G_norm
     return G
 
 def gen_f_kernel(prop, lam, total_size, dx):

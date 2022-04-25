@@ -97,7 +97,8 @@ class SCMT_2D():
         E0 = E0.to(self.devs[0])
         radius = self.N * self.GP.period/2
         NA =  radius/ np.sqrt(radius**2 + self.prop_dis**2)
-        target_sigma = max(self.GP.lams) / (2 * NA) / (self.GP.period / self.GP.out_res)
+        #target_sigma = (min(self.GP.lams) + max(self.GP.lams)) * 0.5 / (2 * NA) / (self.GP.period / self.GP.out_res)
+        target_sigma = min(self.GP.lams)  / (2 * NA) / (self.GP.period / self.GP.out_res)
         print(f"the numerical aperture: {NA:.2f}, target spot size (number of points): {target_sigma:.2f}")
         center = int(round(self.total_size//2))
         # circle = self.circle_mask(center, target_sigma)
@@ -134,8 +135,9 @@ class SCMT_2D():
                                 plot_hs(self.model.metalayer1.hs.cpu().detach().numpy(), self.N),
                                 global_step= step)
                 for i, If in enumerate(Ifs):
+                    out_If = If.cpu().detach().numpy()
                     writer.add_figure(f"If, lam: {self.GP.lams[i]} um",
-                                    plot_If(If),
+                                    plot_If(out_If),
                                     global_step= step)      
                 # loss = loss.item()
                 # loss_list.append(loss)

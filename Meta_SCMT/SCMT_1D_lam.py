@@ -111,8 +111,9 @@ class SCMT_1D():
                                 plot_hs(self.model.metalayer1.hs.cpu().detach().numpy()),
                                 global_step= step)
                 for i, If in enumerate(Ifs):
+                    out_If = If.cpu().detach().numpy()
                     writer.add_figure(f"If, lam: {self.GP.lams[i]} um",
-                                    plot_If(If),
+                                    plot_If(out_If),
                                     global_step= step)       
                 # loss = loss.item()
                 # loss_list.append(loss)
@@ -183,8 +184,7 @@ def plot_hs(out_hs):
     plt.plot(out_hs)
     return fig
 
-def plot_If(If, target_If = None):
-    out_If = If.cpu().detach().numpy()
+def plot_If(out_If, target_If = None):
     fig, axs = plt.subplots(1, 1, figsize = (8, 6))
     plt.ioff()
     axs.plot(out_If, label = 'output')
