@@ -47,7 +47,7 @@ class SCMT_1D():
         #incident field plane wave
         # X = np.arange(self.total_size) * self.GP.dx
         # E0 = np.exp(1j * self.GP.k * np.sin(theta) * X)
-        E0 = np.ones((self.total_size,))
+        E0 = np.ones((self.total_size,))/np.sqrt(self.total_size)
         E0 = torch.tensor(E0, dtype = torch.complex64)
         E0 = E0.to(self.device)
         E_out = self.model(E0)
@@ -73,12 +73,12 @@ class SCMT_1D():
 
         # X = np.arange(self.total_size) * self.GP.dx
         # E0 = np.exp(1j * self.GP.k * np.sin(theta) * X)
-        E0 = np.ones((self.total_size,))
+        E0 = np.ones((self.total_size,))/np.sqrt(self.total_size)
         E0 = torch.tensor(E0, dtype = torch.complex64)
         E0 = E0.to(self.device)
         radius = self.N * self.GP.period/2
         NA =  radius/ np.sqrt(radius**2 + self.prop_dis**2)
-        target_sigma = max(self.GP.lams) / (2 * NA) / self.GP.dx
+        target_sigma = min(self.GP.lams) / (2 * NA) / self.GP.dx
         print("the numerical aperture: ", NA, "target spot size for max[lams], (number of points):", target_sigma)
         center = int(self.total_size//2)
         for step in tqdm(range(steps + 1)):

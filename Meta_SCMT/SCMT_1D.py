@@ -49,7 +49,7 @@ class SCMT_1D():
     def forward(self, theta = 0):
         #incident field plane wave
         X = np.arange(self.total_size) * self.GP.dx
-        E0 = np.exp(1j * self.GP.k * np.sin(theta) * X)
+        E0 = np.exp(1j * self.GP.k * np.sin(theta) * X)/np.sqrt(self.total_size)
         E0 = torch.tensor(E0, dtype = torch.complex64)
         E0 = E0.to(self.device)
         E_out = self.model(E0)
@@ -100,7 +100,7 @@ class SCMT_1D():
                     rand_theta = np.random.uniform(theta[0], theta[1])
                     center = int(self.total_size//2 + self.prop_dis * np.tan(rand_theta)/self.GP.dx)
                     X = np.arange(self.total_size) * self.GP.dx
-                    E0 = np.exp(1j * self.GP.k * np.sin(rand_theta) * X)
+                    E0 = np.exp(1j * self.GP.k * np.sin(rand_theta) * X)/np.sqrt(self.total_size)
                     E0 = torch.tensor(E0, dtype = torch.complex64)
                     E0 = E0.to(self.device)
                     # Compute prediction error

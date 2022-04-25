@@ -336,6 +336,7 @@ class Fullwave_1D():
         plt.xlabel("Position [um]")
         plt.ylabel("Position [um]")
         plt.colorbar()
+        plt.title("abs(field)")
         if self.vis_path is None:
             plt.show()
         else:
