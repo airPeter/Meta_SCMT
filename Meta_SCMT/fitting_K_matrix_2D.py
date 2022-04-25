@@ -29,6 +29,18 @@ class Fitting_K_matrix_2D():
         self.C_EPSILON = C_EPSILON
         
     def fit(self, layers = 4, nodes = 256, steps = 1000, lr = 0.001, vis = True, load = True, save_fig = False):
+        '''
+            we use fully connected network (FCN) to fit a function that given the distance and the widths of two pillars i and j, output Kij\
+                the couplind coefficent of two pillars.
+            Input:
+                layers: number of layers of the FCN.
+                nodes: the nodes of each layer.
+                steps: training steps.
+                lr: learning rate of the training process.
+                vis: if true will visualize the groud truth and the fitting results.
+                load: if true, read the K_map.npy and K_input.npy from caches, which are training dataset. else: the dataset will be generated from skratch.
+                save_fig: if true the visualization is saved in caches without displaying. otherwise, will be display instead of saving. 
+        '''
         X, Y = self.gen_fitting_data(load)
         self.model = Model(4, self.channels, layers= layers, nodes = nodes)
         batch_size = 512

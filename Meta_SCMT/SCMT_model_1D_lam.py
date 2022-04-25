@@ -1,10 +1,8 @@
 import numpy as np
 import torch
 import torch.nn as nn
-from .SCMT_model_1D import gen_neff, gen_C, gen_En, gen_K, gen_U0
+from .SCMT_model_1D import gen_neff, gen_C, gen_En, gen_K, gen_U0, freespace_layer
 from .sputil_1D import gen_dis_CK_input, gen_input_hs
-from scipy import special
-
 
 class Metalayer(torch.nn.Module):
     def __init__(self, GP, COUPLING, N):
@@ -131,42 +129,3 @@ class SCMT_Model(nn.Module):
         return If
     def reset(self):
         self.metalayer1.reset()
-           
-class freespace_layer(nn.Module):
-    def __init__(self, k, prop, total_size, dx):
-        super(freespace_layer, self).__init__()
-        G = torch.tensor(gen_G(k, prop, total_size, dx), dtype= torch.complex64)
-        self.register_buffer('G', G)
-    def forward(self, En):
-        Ef = self.G @ En
-        return Ef
-
-def gen_G(k, prop, total_size, dx):
-    x = (np.arange(total_size)) * dx
-    inplane_dis = np.reshape(x, (1,-1)) - np.reshape(x, (-1, 1))
-    r = np.sqrt(prop**2 + inplane_dis**2)
-    v = 1
-    G = -1j * k / 4 * special.hankel1(v, k * r) * prop / r * dx
-    return G
-
-# def propagator(k, prop, total_size, dx):
-#     '''
-#         prop distance in free space
-#     '''
-#     def W(x, y, z, wavelength):
-#         r = np.sqrt(x*x+y*y+z*z)
-#         #w = z/r**2*(1/(np.pi*2*r)+1/(relative_wavelength*1j))*np.exp(1j*2*np.pi*r/relative_wavelength)
-#         w = z/(r**2)*(1/(wavelength*1j))*np.exp(1j*2*np.pi*r/wavelength)
-#         return w
-#     #plane_size: the numerical size of plane, this is got by (physical object size)/(grid)
-
-#     x = np.arange(-(total_size-1), total_size,1) * dx
-#     lam = 2 * np.pi / k
-#     G = W(x, 0, prop, lam)
-#     #solid angle Sigma = integral(integral(sin(theta))dthtea)dphi
-#     # theta = np.arctan(total_size * dx/prop)
-#     # Sigma = 2 * np.pi * (1 - np.cos(theta))
-#     # G_norm = (np.abs(G)**2).sum() * 4 * np.pi / Sigma 
-#     # print(f"Free space energy conservation normalization G_norm: {G_norm:.2f}")
-#     # G = G / G_norm
-#     return G

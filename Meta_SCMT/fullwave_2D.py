@@ -38,7 +38,7 @@ class Fullwave_2D():
         # Simulation domain size (in micron)
         spacing = 1 * self.GP.lam
         z_size = self.GP.wh + 2 * spacing + prop_dis * 1.1
-        x_size = (N) * self.GP.period
+        x_size = (N + 2 * self.GP.Knn + 1) * self.GP.period
         self.x_size = x_size
         xh = x_size / 2
         NA = np.sin(xh / np.sqrt(xh**2 + prop_dis**2))

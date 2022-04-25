@@ -71,7 +71,7 @@ class Sim():
             saved_GP = saved_GP.item()
             if not self.GP == saved_GP:
                 warnings.warn('Your global parameters have changed. be careful loading any cached data, it may be in consist!')
-                print("If dowmsample_ratio changed, if only need to rerun fitting E.")
+                print("If dowmsample_ratio changed, it only need to rerun fitting E.")
                 print("It is ok to change n_sub, which is decoupled with the cached data.")
                 time.sleep(3)
         if self.GP.dim == 1:
