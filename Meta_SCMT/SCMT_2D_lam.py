@@ -69,7 +69,7 @@ class SCMT_2D():
             if far_field == True, output is intensity otherwise is field.
         '''
         #incident field plane wave
-        E0 = np.ones((self.total_size, self.total_size))
+        E0 = np.ones((self.total_size, self.total_size))/self.total_size
         E0 = torch.tensor(E0, dtype = torch.complex64)
         E0 = E0.to(self.devs[0])
         E_out = self.model(E0)
@@ -92,7 +92,7 @@ class SCMT_2D():
         decay_rate = gen_decay_rate(steps, decay_steps)
         my_lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=decay_rate)
         self.model.train()
-        E0 = E0 = np.ones((self.total_size, self.total_size))
+        E0 = E0 = np.ones((self.total_size, self.total_size))/self.total_size
         E0 = torch.tensor(E0, dtype = torch.complex64)
         E0 = E0.to(self.devs[0])
         radius = self.N * self.GP.period/2

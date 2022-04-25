@@ -63,7 +63,7 @@ class SCMT_2D():
         x = np.arange(self.total_size) * self.GP.period / self.GP.out_res
         y = x.copy()
         X, _ = np.meshgrid(x, y)
-        E0 = np.exp(1j * self.GP.k * np.sin(theta) * X)
+        E0 = np.exp(1j * self.GP.k * np.sin(theta) * X)/self.total_size
         E0 = torch.tensor(E0, dtype = torch.complex64)
         E0 = E0.to(self.devs[0])
         E_out = self.model(E0)
@@ -90,7 +90,7 @@ class SCMT_2D():
         x = np.arange(self.total_size) * (self.GP.period / self.GP.out_res)
         y = x.copy()
         X, _ = np.meshgrid(x, y)
-        E0 = np.exp(1j * self.GP.k * np.sin(theta) * X)
+        E0 = np.exp(1j * self.GP.k * np.sin(theta) * X)/self.total_size
         E0 = torch.tensor(E0, dtype = torch.complex64)
         E0 = E0.to(self.devs[0])
         radius = self.N * self.GP.period/2
