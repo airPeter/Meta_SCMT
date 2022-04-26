@@ -1,5 +1,6 @@
 '''design metasurface by modeling the meta unit as waveguide. 
     the coupling between waveguide is modeled by spacial couple mode theory (SCMT).
+    currently, only support S wave, the polarization is vertical to the incident plane.
     note:
         the unit is [um].
         waveguide only has TE mode. (Ey, and Hx are non zero, other polarizations are zero.

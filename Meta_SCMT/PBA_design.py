@@ -126,7 +126,7 @@ class PBA():
             plt.show()
         return None
     
-    def design_lens(self, N, focal_length, load = False, vis = True):
+    def design_lens(self, N, focal_length, load = False, vis = True, quarter = False):
         if load:
             self.width_phase_map = np.load(self.GP.path + "rcwa_width_phase_map.npy")
         else:
@@ -135,7 +135,13 @@ class PBA():
         if self.dim == 1:
             x_lens, lens = lens_1D(N, self.GP.period, focal_length, self.GP.k)
         elif self.dim == 2:
-            x_lens, lens = lens_2D(N, self.GP.period, focal_length, self.GP.k)
+            if quarter:
+                N2 = 2 * N
+                x_lens, lens = lens_2D(N2, self.GP.period, focal_length, self.GP.k)
+                x_lens = x_lens[N:]
+                lens = lens[N:,N:]
+            else:
+                x_lens, lens = lens_2D(N, self.GP.period, focal_length, self.GP.k)
         lens_phase = lens%(2 * np.pi) - np.pi
         widths_map = gen_width_from_phase(self.width_phase_map, lens_phase)
         widths_map = np.around(widths_map, 3)

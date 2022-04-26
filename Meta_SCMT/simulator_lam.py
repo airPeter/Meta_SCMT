@@ -1,5 +1,6 @@
 '''
     multi wavelength SCMT model.
+    currently, only support S wave, the polarization is vertical to the incident plane.
 '''
 import numpy as np
 import os

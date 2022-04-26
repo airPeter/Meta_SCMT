@@ -6,7 +6,7 @@ import torch
 from torch import optim
 import os
 from torch.utils.tensorboard import SummaryWriter
-from .utils import gen_decay_rate
+from .utils import gen_decay_rate, gaussian_func
 from tqdm import tqdm
 import warnings
 import math
@@ -58,14 +58,15 @@ class SCMT_1D():
     
     def optimize(self, notes, steps, lr = 0.01, theta = 0.0, minmax = True, substeps = 5):
         if type(theta) is tuple:
-            self.optimize_range_theta(notes, steps, lr, theta, minmax = True, substeps = 5)
+            #eg: theta =  = (-np.pi/6, np.pi/6)
+            self.optimize_range_theta(notes, steps, lr, theta, minmax, substeps)
             print("the target is to make a perfect lens within the given incident angle range.")
         else:
             self.optimize_fix_theta(notes, steps, lr, theta)
             print("the target is to maximize the intensity of the center.")
         return None
     
-    def optimize_range_theta(self, notes, steps, lr = 0.01, theta = (-np.pi/6, np.pi/6), minmax = True, substeps = 5):
+    def optimize_range_theta(self, notes, steps, lr, theta, minmax, substeps):
         print("optimize lens, incident planewave angle range: " + str(theta))
         if not self.far_field:
             raise Exception("Should initalize model with far_field=True")
@@ -164,7 +165,7 @@ class SCMT_1D():
         print('parameters saved in.', out_path)
         return None
     
-    def optimize_fix_theta(self, notes, steps, lr = 0.01, theta = 0.0):
+    def optimize_fix_theta(self, notes, steps, lr, theta):
         if not self.far_field:
             raise Exception("Should initalize model with far_field=True")
         if self.COUPLING:
@@ -293,6 +294,3 @@ def plot_If(If, target_If = None):
 def loss_max_center(If, center, max_length):
     intensity = torch.sum(torch.abs(If[center - int(max_length//2): center + int(max_length//2)]))
     return - intensity
-
-def gaussian_func(x, mu, sigma):
-    return np.exp(- (x - mu)**2 / (2 * sigma**2))

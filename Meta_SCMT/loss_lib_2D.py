@@ -6,7 +6,7 @@ import cv2
 mse = torch.nn.MSELoss(reduction = 'sum')
 
 def max_center(If, center, max_length):
-    intensity = torch.sum(torch.abs(If[center - int(max_length//2): center + int(max_length//2), center - int(max_length//2): center + int(max_length//2)]))
+    intensity = torch.sum(torch.abs(If[center[0] - int(max_length//2): center[0] + int(max_length//2), center[1] - int(max_length//2): center[1] + int(max_length//2)]))
     return - intensity
 
 def max_center_circle(If, center, max_length):

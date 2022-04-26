@@ -2,6 +2,36 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader,Dataset
 import cv2
+import matplotlib.pyplot as plt
+
+
+def toint(x):
+    if type(x) == np.ndarray:
+        return np.round(x).astype(int)
+    else:
+        return int(round(x))
+    
+def gaussian_func(x, mu, sigma):
+    return np.exp(- (x - mu)**2 / (2 * sigma**2))
+
+def quarter2whole(widths):
+    widths4 = widths
+    plt.figure()
+    plt.imshow(widths4)
+    plt.colorbar()
+    plt.show()
+    widths3 = widths4[:, ::-1]
+    print(widths3.shape)
+    widths2 = widths4[::-1, :]
+    print(widths2.shape)
+    widths1 = widths2[:,::-1]
+    print(widths1.shape)
+    widths = np.r_[np.c_[widths1, widths2], np.c_[widths3, widths4]]
+    plt.figure()
+    plt.imshow(widths)
+    plt.colorbar()
+    plt.show()
+    return widths
 
 def opt_phase_offset(p1, p2):
     dis = np.inf

@@ -9,9 +9,9 @@ import torch
 from torch import optim
 import os
 from torch.utils.tensorboard import SummaryWriter
-from .utils import gen_decay_rate
+from .utils import gen_decay_rate, quarter2whole
 from tqdm import tqdm
-from .loss_lib_2D import max_center
+from .loss_lib_2D import max_center, max_corner
 import cv2
 import warnings
 
@@ -76,7 +76,12 @@ class SCMT_2D():
         E_out = [E.cpu().detach().numpy() for E in E_out]
         return E_out
     
-    def optimize(self, notes, steps, lr = 0.1, minmax = False):
+    def optimize(self, notes, steps, lr = 0.1, minmax = False, quarter = False):
+        '''
+        input:
+            quarter: if true, maximize the corner instead of center. If train lens, this is equal to train a quarter of lens.
+        
+        '''
         if not self.far_field:
             raise Exception("Should initalize model with far_field=True")
         if self.COUPLING:
@@ -107,15 +112,26 @@ class SCMT_2D():
         for step in tqdm(range(steps + 1)):
             # Compute prediction error
             Ifs = self.model(E0)
-            if minmax:
-                losses = [max_center(If, center, target_sigma) for If in Ifs]
-                loss = - np.inf
-                for tmp_loss in losses:
-                    if tmp_loss > loss:
-                        loss = tmp_loss
+            if quarter:
+                if minmax:
+                    losses = [max_corner(If, self.GP.Knn, self.GP.out_res, target_sigma) for If in Ifs]
+                    loss = - np.inf
+                    for tmp_loss in losses:
+                        if tmp_loss > loss:
+                            loss = tmp_loss
+                else:
+                    idx = np.random.randint(0, len(self.GP.lams))
+                    loss = max_corner(If, self.GP.Knn, self.GP.out_res, target_sigma)
             else:
-                idx = np.random.randint(0, len(self.GP.lams))
-                loss = max_center(Ifs[idx], center, target_sigma)
+                if minmax:
+                    losses = [max_center(If, center, target_sigma) for If in Ifs]
+                    loss = - np.inf
+                    for tmp_loss in losses:
+                        if tmp_loss > loss:
+                            loss = tmp_loss
+                else:
+                    idx = np.random.randint(0, len(self.GP.lams))
+                    loss = max_center(Ifs[idx], center, target_sigma)
 
             # Backpropagation
             optimizer.zero_grad()
@@ -144,6 +160,10 @@ class SCMT_2D():
                 # print(f"loss: {loss:>7f}  [{step:>5d}/{train_steps:>5d}]")
         print("final lr:", my_lr_scheduler.get_last_lr())
         out_hs = self.model.metalayer1.hs.cpu().detach().numpy()
+        out_hs = out_hs.reshape(self.N, self.N)
+        if quarter:
+            np.savetxt(out_path + 'waveguide_widths_quarter.csv', out_hs, delimiter=",")
+            out_hs = quarter2whole(out_hs)
         np.savetxt(out_path + 'waveguide_widths.csv', out_hs, delimiter=",")
         print('parameters saved in.', out_path)
         return None

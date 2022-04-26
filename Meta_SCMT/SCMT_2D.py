@@ -5,11 +5,12 @@ import torch
 from torch import optim
 import os
 from torch.utils.tensorboard import SummaryWriter
-from .utils import gen_decay_rate
+from .utils import gen_decay_rate, quarter2whole, gaussian_func, toint
 from tqdm import tqdm
-from .loss_lib_2D import max_center
+from .loss_lib_2D import max_center, max_corner
 import cv2
 import warnings
+import math
 
 class SCMT_2D():
     def __init__(self, GP):
@@ -69,8 +70,128 @@ class SCMT_2D():
         E_out = self.model(E0)
         E_out = E_out.cpu().detach().numpy()
         return E_out
+    def optimize(self, notes, steps, lr = 0.1, theta = 0.0, quarter = False, minmax = False, substeps = 10):
+        if type(theta) is tuple:
+            #eg: theta = (-np.pi/6, np.pi/6)
+            self.optimize_range_theta(notes, steps, lr, theta, minmax = minmax, substeps = substeps)
+            print("the target is to make a perfect lens within the given incident angle range.")
+        else:
+            self.optimize_fix_theta(notes, steps, lr, theta, quarter)
+            print("the target is to maximize the intensity of the center.")
+        return None
     
-    def optimize(self, notes, steps, lr = 0.1, theta = 0):
+    def optimize_range_theta(self, notes, steps, lr, theta, minmax, substeps):
+        print("optimize lens, incident planewave angle range: " + str(theta))
+        if not self.far_field:
+            raise Exception("Should initalize model with far_field=True")
+        if self.COUPLING:
+            out_path = 'output_cmt/'
+        else:
+            out_path = 'output_no_coupling/'
+        if not os.path.exists(out_path):
+            os.mkdir(out_path)
+        out_path = out_path + notes + '/'
+        writer = SummaryWriter(out_path + 'summary1')
+        optimizer = optim.Adam(self.model.parameters(), lr=lr)
+        decay_steps = steps // 10
+        decay_rate = gen_decay_rate(steps, decay_steps)
+        my_lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=decay_rate)
+        self.model.train()
+
+        radius = self.N * self.GP.period/2
+        NA =  radius/ np.sqrt(radius**2 + self.prop_dis**2)
+        target_sigma = self.GP.lam / (2 * NA) / (self.GP.period / self.GP.out_res)
+        print(f"the numerical aperture: {NA:.2f}, target spot size (number of points): {target_sigma:.2f}")
+
+        for step in tqdm(range(steps + 1)):
+            if minmax:
+                hs_grads = []
+                sub_losses = []
+                for _ in range(substeps):
+                    rand_theta = np.random.uniform(theta[0], theta[1])
+                    rand_phi = np.random.uniform(0, 2 * np.pi)
+                    cr = int(self.total_size//2 + self.prop_dis * np.tan(rand_theta)/(self.GP.period / self.GP.out_res))
+                    cx = toint(cr * np.cos(rand_phi))
+                    cy = toint(cr * np.sin(rand_phi))
+                    x = np.arange(self.total_size) * (self.GP.period / self.GP.out_res)
+                    y = x.copy()
+                    X, Y = np.meshgrid(x, y)
+                    kx = self.GP.k * np.sin(rand_theta) * np.cos(rand_phi)
+                    ky = self.GP.k * np.sin(rand_theta) * np.sin(rand_phi)
+                    E0 = np.exp(1j * (kx * X + ky * Y))/self.total_size
+                    E0 = torch.tensor(E0, dtype = torch.complex64)
+                    E0 = E0.to(self.devs[0])
+                    # Compute prediction error
+                    If = self.model(E0)
+                    loss = max_center(If, (cy, cx), target_sigma)
+                    sub_losses.append(loss.cpu().detach().item())
+                    self.model.zero_grad()
+                    loss.backward()
+                    with torch.no_grad():
+                        hs_grads.append(self.model.metalayer1.h_paras.grad)
+                idx = np.argmax(np.array(sub_losses))
+                grad = hs_grads[idx]
+                self.model.metalayer1.h_paras.grad.copy_(grad)
+                optimizer.step()
+                        
+            else:
+                rand_theta = np.random.uniform(theta[0], theta[1])
+                rand_phi = np.random.uniform(0, 2 * np.pi)
+                cr = self.prop_dis * np.tan(rand_theta)/(self.GP.period / self.GP.out_res)
+                cx = toint(self.total_size//2 + cr * np.cos(rand_phi))
+                cy = toint(self.total_size//2 + cr * np.sin(rand_phi))
+                x = np.arange(self.total_size) * (self.GP.period / self.GP.out_res)
+                y = x.copy()
+                X, Y = np.meshgrid(x, y)
+                kx = self.GP.k * np.sin(rand_theta) * np.cos(rand_phi)
+                ky = self.GP.k * np.sin(rand_theta) * np.sin(rand_phi)
+                E0 = np.exp(1j * (kx * X + ky * Y))/self.total_size
+                E0 = torch.tensor(E0, dtype = torch.complex64)
+                E0 = E0.to(self.devs[0])
+                # Compute prediction error
+                If = self.model(E0)
+                loss = max_center(If, (cy, cx), target_sigma)
+                # Backpropagation
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+
+            if step % decay_steps == 0 and step != 0:
+                my_lr_scheduler.step()
+                
+            if step % decay_steps == 0:    # every 1000 mini-batches...
+                xg = np.arange(self.total_size)
+                yg = xg.copy()
+                Xg, Yg = np.meshgrid(xg, yg)
+                target_If = gaussian_func(Yg, cy, target_sigma) * gaussian_func(Xg, cx, target_sigma)
+                # ...log the running loss
+                writer.add_scalar('training loss',
+                                scalar_value = loss.item(), global_step = step)
+                writer.add_figure('hs',
+                                plot_hs(self.model.metalayer1.hs.cpu().detach().numpy(), self.N),
+                                global_step= step)
+                writer.add_figure('If',
+                                plot_If(If.cpu().detach().numpy(), f"theta: {math.degrees(rand_theta):.2f}, phi: {math.degrees(rand_phi):.2f}"),
+                                global_step= step)    
+                writer.add_figure('target If',
+                                plot_If(target_If, f"theta: {math.degrees(rand_theta):.2f}, phi: {math.degrees(rand_phi):.2f}"),
+                                global_step= step)    
+        if minmax:
+            print("final lr:", lr)
+        else:
+            print("final lr:", my_lr_scheduler.get_last_lr())
+        out_hs = self.model.metalayer1.hs.cpu().detach().numpy()
+        out_hs = out_hs.reshape(self.N, self.N)
+        np.savetxt(out_path + 'waveguide_widths.csv', out_hs, delimiter=",")
+        print('parameters saved in.', out_path)
+        return None
+            
+    def optimize_fix_theta(self, notes, steps, lr, theta, quarter):
+        '''
+        input:
+            quarter: if true, maximize the corner instead of center. If train lens, this is equal to train a quarter of lens.
+        
+        '''
         if not self.far_field:
             raise Exception("Should initalize model with far_field=True")
         if self.COUPLING:
@@ -98,14 +219,17 @@ class SCMT_2D():
         target_sigma = self.GP.lam / (2 * NA) / (self.GP.period / self.GP.out_res)
         print(f"the numerical aperture: {NA:.2f}, target spot size (number of points): {target_sigma:.2f}")
         center = int(round(self.total_size//2))
-        circle = self.circle_mask(center, target_sigma)
-        circle = torch.tensor(circle, dtype = torch.float)
-        circle = circle.to(self.devs[0])
+        # circle = self.circle_mask(center, target_sigma)
+        # circle = torch.tensor(circle, dtype = torch.float)
+        # circle = circle.to(self.devs[0])
         for step in tqdm(range(steps + 1)):
             # Compute prediction error
             If = self.model(E0)
-            #loss = max_center(If, center, target_sigma)
-            loss = - (If * circle).sum()
+            if quarter:
+                loss = max_corner(If, self.GP.Knn, self.GP.out_res, target_sigma)
+            else:
+                loss = max_center(If, (center, center), target_sigma)
+            #loss = - (If * circle).sum()
             # Backpropagation
             optimizer.zero_grad()
             loss.backward()
@@ -131,6 +255,10 @@ class SCMT_2D():
                 # print(f"loss: {loss:>7f}  [{step:>5d}/{train_steps:>5d}]")
         print("final lr:", my_lr_scheduler.get_last_lr())
         out_hs = self.model.metalayer1.hs.cpu().detach().numpy()
+        out_hs = out_hs.reshape(self.N, self.N)
+        if quarter:
+            np.savetxt(out_path + 'waveguide_widths_quarter.csv', out_hs, delimiter=",")
+            out_hs = quarter2whole(out_hs)
         np.savetxt(out_path + 'waveguide_widths.csv', out_hs, delimiter=",")
         print('parameters saved in.', out_path)
         return None
@@ -193,14 +321,18 @@ def plot_hs(out_hs, N):
     plt.colorbar()
     return fig
 
-def plot_If(If):
+def plot_If(If, title = None):
     size = If.shape[0]
     c = size//2
     r = np.minimum(c, 60)
     If_c = If[c-r:c+r, c-r:c+r]
     fig, axs = plt.subplots(1, 2, figsize = (12, 6))
     plot1 = axs[0].imshow(If, cmap = 'magma')
+    if title:
+        axs[0].set_title(title)
     plt.colorbar(plot1, ax = axs[0])
     plot2 = axs[1].imshow(If_c, cmap = 'magma')
+    axs[1].set_title("Zoom in (central)")
     plt.colorbar(plot2, ax = axs[1])
+    
     return fig
