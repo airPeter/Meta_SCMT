@@ -336,8 +336,8 @@ class gen_Euler_with_backward_devs(torch.autograd.Function):
                 Ui0_devj = Ui0_dev1.to(devs[j])
                 Ur1_devj = -dz * torch.sparse.mm(As[j], Ui0_devj)
                 Ui1_devj = dz * torch.sparse.mm(As[j], Ur0_devj)
-                Ur1_dev1 += Ur1_devj.to(devs[0])
-                Ui1_dev1 += Ui1_devj.to(devs[0])
+                Ur1_dev1 += Ur1_devj.to(Ur0_dev1.device)
+                Ui1_dev1 += Ui1_devj.to(Ui0_dev1.device)
             Ur0_dev1 = Ur1_dev1
             Ui0_dev1 = Ui1_dev1
         ctx.Urs = Urs
@@ -388,8 +388,8 @@ class gen_Euler_with_backward_devs(torch.autograd.Function):
                 step_AjUi_grad, step_Ur0_grad_mm_devj = step_back(step_Ui1_grad_devj, As[j], Ur0_devj, dz)
                 As_grad[j] += step_AjUr_grad
                 As_grad[j] += step_AjUi_grad
-                step_Ur0_add += step_Ur0_grad_mm_devj.to(ctx.devs[0])
-                step_Ui0_add += step_Ui0_grad_mm_devj.to(ctx.devs[0])
+                step_Ur0_add += step_Ur0_grad_mm_devj.to(step_Ur0_add.device)
+                step_Ui0_add += step_Ui0_grad_mm_devj.to(step_Ui0_add.device)
             step_Ur1_grad = step_Ur0_add
             step_Ui1_grad = step_Ui0_add
         

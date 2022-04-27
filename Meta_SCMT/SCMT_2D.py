@@ -110,9 +110,9 @@ class SCMT_2D():
                 for _ in range(substeps):
                     rand_theta = np.random.uniform(theta[0], theta[1])
                     rand_phi = np.random.uniform(0, 2 * np.pi)
-                    cr = int(self.total_size//2 + self.prop_dis * np.tan(rand_theta)/(self.GP.period / self.GP.out_res))
-                    cx = toint(cr * np.cos(rand_phi))
-                    cy = toint(cr * np.sin(rand_phi))
+                    cr = self.prop_dis * np.tan(rand_theta)/(self.GP.period / self.GP.out_res)
+                    cx = toint(self.total_size//2 + cr * np.cos(rand_phi))
+                    cy = toint(self.total_size//2 + cr * np.sin(rand_phi))
                     x = np.arange(self.total_size) * (self.GP.period / self.GP.out_res)
                     y = x.copy()
                     X, Y = np.meshgrid(x, y)

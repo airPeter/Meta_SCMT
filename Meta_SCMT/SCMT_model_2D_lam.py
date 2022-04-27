@@ -1,3 +1,9 @@
+'''
+    when use multi-GPU, how to assign device need special care.
+    for devs[i], it will be the main host of lam[i].
+    For the matrix inverse and exponential operation, the work load will be shared by all devices.
+
+'''
 import numpy as np
 import torch
 import torch.nn as nn
@@ -18,11 +24,14 @@ class Metalayer(torch.nn.Module):
         self.wh = GP.wh
         self.sig = torch.nn.Sigmoid()
         self.lams = self.GP.lams
+        dis = gen_dis_CK_input(N)
+        coo = gen_coo_sparse(N)
+
         meta_subs = []
         for meta_idx in range(len(self.lams)):
-            meta_subs.append(Metalayer_sub(Euler_steps, devs, self.GP, COUPLING, APPROX, Ni, k_row, N, meta_idx))
+            meta_subs.append(Metalayer_sub(Euler_steps, devs, self.GP, COUPLING, APPROX, Ni, k_row, N, meta_idx, dis, coo))
         self.meta_subs = nn.ModuleList(meta_subs)
-        
+
     def forward(self, E0):
         '''
         size of E0: (N + 2 * (Knnc + 1)) * period_resolution
@@ -41,7 +50,7 @@ class Metalayer(torch.nn.Module):
             self.meta_subs[i].reset(path)
             
 class Metalayer_sub(torch.nn.Module):
-    def __init__(self, Euler_steps, devs, GP, COUPLING, APPROX, Ni, k_row, N, meta_idx):
+    def __init__(self, Euler_steps, devs, GP, COUPLING, APPROX, Ni, k_row, N, meta_idx, dis, coo):
         '''
 
         '''
@@ -52,6 +61,10 @@ class Metalayer_sub(torch.nn.Module):
         self.num_devs = len(devs)
         if N%self.num_devs != 0:
             raise ValueError(" num_devs should be divided by N")
+        if len(self.devs) >= len(GP.lams):
+            self.dev_idx = meta_idx
+        else:
+            self.dev_idx = 0
         gen_cinv_modules = []
         rows_per_dev = N**2//self.num_devs
         for i in range(self.num_devs):
@@ -78,22 +91,24 @@ class Metalayer_sub(torch.nn.Module):
         K_paras = K_paras.item()
         E_paras = np.load(path + "E_paras.npy", allow_pickle= True)
         E_paras = E_paras.item()
-        self.neffnn = gen_neff(GP.modes, neff_paras['nodes'], neff_paras['layers']).to(self.devs[0])
-        self.genc = gen_C(GP.modes, C_paras['nodes'], C_paras['layers'], N).to(self.devs[0])
-        self.genk = gen_K(GP.modes, K_paras['nodes'], K_paras['layers'], N).to(self.devs[0])
-        self.genu0 = gen_U0(GP.modes, neff_paras['nodes'], neff_paras['layers'], E_paras['nodes'], E_paras['layers'], GP.out_res, N, GP.n0, GP.C_EPSILON, GP.period, GP.Knn).to(self.devs[0])
-        self.genen = gen_En(GP.modes, GP.out_res, N, GP.n0, GP.C_EPSILON, GP.Knn).to(self.devs[0])
+        self.neffnn = gen_neff(GP.modes, neff_paras['nodes'], neff_paras['layers']).to(self.devs[self.dev_idx])
+        self.genc = gen_C(GP.modes, C_paras['nodes'], C_paras['layers'], N).to(self.devs[self.dev_idx])
+        self.genk = gen_K(GP.modes, K_paras['nodes'], K_paras['layers'], N).to(self.devs[self.dev_idx])
+        self.genu0 = gen_U0(GP.modes, neff_paras['nodes'], neff_paras['layers'], E_paras['nodes'], E_paras['layers'], GP.out_res, N, GP.n0, GP.C_EPSILON, GP.period, GP.Knn).to(self.devs[self.dev_idx])
+        self.genen = gen_En(GP.modes, GP.out_res, N, GP.n0, GP.C_EPSILON, GP.Knn).to(self.devs[self.dev_idx])
         if GP.Knn != 2:
             raise Exception("Knn = 2 is hardcode in sputil_2D module. So only Knn = 2 is supported.")
-        self.gen_hs_input = gen_input_hs(N).to(self.devs[0])
-        dis = torch.tensor(gen_dis_CK_input(N), dtype = torch.float, requires_grad = False).to(self.devs[0])
+        self.gen_hs_input = gen_input_hs(N).to(self.devs[self.dev_idx])
+        dis = torch.tensor(dis, dtype = torch.float, requires_grad = False).to(self.devs[self.dev_idx])
         self.register_buffer('dis', dis)
-        coo = torch.tensor(gen_coo_sparse(N),dtype=int, requires_grad = False).to(self.devs[0])
+        coo = torch.tensor(coo,dtype=int, requires_grad = False).to(self.devs[self.dev_idx])
         self.register_buffer('coo', coo)
     def forward(self, E0, hs):
         '''
         size of E0: (N + 2 * (Knnc + 1)) * self.out_res
         '''
+        hs = hs.to(self.devs[self.dev_idx])
+        E0 = E0.to(self.devs[self.dev_idx])
         self.neffs = self.neffnn(hs.view(-1, 1))
         with torch.set_grad_enabled(False):
             Eys, U0 = self.genu0(hs, E0)
@@ -157,19 +172,28 @@ class SCMT_Model(nn.Module):
         self.metalayer1 = Metalayer(Euler_steps, devs, GP, COUPLING, APPROX, Ni, k_row, N)
         self.lams = GP.lams
         freelayers = []
-        for lam in self.lams:
-            freelayers.append(freespace_layer(self.prop, lam, total_size, GP.period / GP.out_res).to(devs[0]))
+        self.devs = devs
+        if len(devs) >= len(self.lams):
+            for idx, lam in enumerate(self.lams):
+                freelayers.append(freespace_layer(self.prop, lam, total_size, GP.period / GP.out_res).to(devs[idx]))            
+        else:
+            for lam in self.lams:
+                freelayers.append(freespace_layer(self.prop, lam, total_size, GP.period / GP.out_res).to(devs[0]))
         self.freelayers = nn.ModuleList(freelayers)
         
     def forward(self, E0):
         Ens = self.metalayer1(E0)
         Efs = []
-        for i in range(len(self.freelayers)):
-            Efs.append(self.freelayers[i](Ens[i]))
+        if len(self.devs) >= len(self.lams):
+            for i in range(len(self.freelayers)):
+                Efs.append(self.freelayers[i](Ens[i]))       
+        else:
+            for i in range(len(self.freelayers)):
+                Efs.append(self.freelayers[i](Ens[i]))
+        If = [torch.abs(E.to(E0.device))**2 for E in Efs]     
         # If = torch.abs(Efs[0])**2
         # for tmp_E in Efs[1:]:
         #     If = If + torch.abs(tmp_E)**2
-        If = [torch.abs(E)**2 for E in Efs]
         return If
     def reset(self):
         self.metalayer1.reset()
