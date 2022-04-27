@@ -19,7 +19,7 @@ class PBA_model(nn.Module):
         freelayers = []
         genphases = []
         for idx, lam in enumerate(self.GP.lams):
-            freelayers.append(freespace_layer(2 * np.pi / lam, self.prop, total_size, GP.dx))
+            freelayers.append(freespace_layer(self.prop, lam, total_size, GP.dx))
             paras = np.load(self.GP.paths[idx] + "PBA_paras.npy", allow_pickle= True)
             paras = paras.item()
             genphases.append(gen_Phase(nodes = paras['nodes'], layers = paras['layers']))

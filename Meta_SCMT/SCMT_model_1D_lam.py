@@ -114,7 +114,7 @@ class SCMT_Model(nn.Module):
         self.lams = GP.lams
         freelayers = []
         for lam in self.lams:
-            freelayers.append(freespace_layer(2 * np.pi / lam, self.prop, total_size, GP.dx))
+            freelayers.append(freespace_layer(self.prop, lam, total_size, GP.dx))
         self.freelayers = nn.ModuleList(freelayers)
         
     def forward(self, E0):

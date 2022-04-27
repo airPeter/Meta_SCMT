@@ -302,7 +302,7 @@ class Ideal_model(nn.Module):
         super(Ideal_model, self).__init__()
         self.prop = prop_dis
         self.phase = torch.nn.Parameter(torch.empty((total_size,), dtype = torch.float))
-        self.freelayer1 = freespace_layer(2 * np.pi / GP.lam, self.prop, total_size, GP.dx)
+        self.freelayer1 = freespace_layer(self.prop, GP.lam, total_size, GP.dx)
     def forward(self, E0):
         E = E0 * torch.exp(1j * self.phase)
         Ef = self.freelayer1(E)
