@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 import torch.nn as nn
-from .utils import Model
+from .utils import Model, fourier_conv1D
 from .sputil_1D import gen_coo_sparse, gen_dis_CK_input, gen_input_hs
 from scipy import special
 
@@ -239,7 +239,7 @@ class SCMT_Model(nn.Module):
         self.prop = prop_dis
         total_size = (N + 2 * GP.Knn + 1) * GP.res
         self.metalayer1 = Metalayer(GP, COUPLING, N)
-        self.freelayer1 = freespace_layer(GP.k, self.prop, total_size, GP.dx)
+        self.freelayer1 = freespace_layer(self.prop, GP.lam, total_size, GP.dx)
     def forward(self, E0):
         En = self.metalayer1(E0)
         Ef = self.freelayer1(En)
@@ -249,24 +249,33 @@ class SCMT_Model(nn.Module):
     def reset(self, path):
         self.metalayer1.reset(path)
            
+# class freespace_layer(nn.Module):
+#     def __init__(self, k, prop, total_size, dx):
+#         super(freespace_layer, self).__init__()
+#         G = torch.tensor(gen_G(k, prop, total_size, dx), dtype= torch.complex64)
+#         self.register_buffer('G', G)
+#     def forward(self, En):
+#         Ef = self.G @ En
+#         return Ef
+
+# def gen_G(k, prop, total_size, dx):
+#     x = (np.arange(total_size)) * dx
+#     inplane_dis = np.reshape(x, (1,-1)) - np.reshape(x, (-1, 1))
+#     r = np.sqrt(prop**2 + inplane_dis**2)
+#     v = 1
+#     G = -1j * k / 4 * special.hankel1(v, k * r) * prop / r * dx
+#     return G
+
 class freespace_layer(nn.Module):
-    def __init__(self, k, prop, total_size, dx):
+    def __init__(self, prop, lam, total_size, dx):
         super(freespace_layer, self).__init__()
-        G = torch.tensor(gen_G(k, prop, total_size, dx), dtype= torch.complex64)
-        self.register_buffer('G', G)
+        f_kernel = gen_f_kernel(prop, lam, total_size, dx)
+        self.register_buffer('fk_const', f_kernel)
     def forward(self, En):
-        Ef = self.G @ En
+        Ef = fourier_conv1D(En, self.fk_const)
         return Ef
-
-def gen_G(k, prop, total_size, dx):
-    x = (np.arange(total_size)) * dx
-    inplane_dis = np.reshape(x, (1,-1)) - np.reshape(x, (-1, 1))
-    r = np.sqrt(prop**2 + inplane_dis**2)
-    v = 1
-    G = -1j * k / 4 * special.hankel1(v, k * r) * prop / r * dx
-    return G
-
-def propagator(k, prop, total_size, dx):
+    
+def propagator(prop, lam, total_size, dx):
     '''
         prop distance in free space
     '''
@@ -278,16 +287,15 @@ def propagator(k, prop, total_size, dx):
     #plane_size: the numerical size of plane, this is got by (physical object size)/(grid)
 
     x = np.arange(-(total_size-1), total_size,1) * dx
-    lam = 2 * np.pi / k
     G = W(x, 0, prop, lam)
-    #solid angle Sigma = integral(integral(sin(theta))dthtea)dphi
-    # theta = np.arctan(total_size * dx/prop)
-    # Sigma = 2 * np.pi * (1 - np.cos(theta))
-    # G_norm = (np.abs(G)**2).sum() * 4 * np.pi / Sigma 
-    # print(f"Free space energy conservation normalization G_norm: {G_norm:.2f}")
-    # G = G / G_norm
     return G
 
+def gen_f_kernel(prop, lam, total_size, dx):
+    G = propagator(prop, lam, total_size, dx)
+    f_kernel = np.fft.fft(np.fft.ifftshift(G))
+    f_kernel = torch.tensor(f_kernel, dtype = torch.complex64)
+    print("f_kernel generated.")
+    return f_kernel
 
 class Ideal_model(nn.Module):
     def __init__(self, prop_dis, GP, total_size):

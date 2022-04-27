@@ -70,6 +70,28 @@ def lens_2D(total_size, dx, focal_lens, k):
     phase = k * (focal_lens - np.sqrt(X**2 + Y**2 + focal_lens**2))
     return x , phase
 
+def fourier_conv1D(signal: torch.Tensor, f_kernel: torch.Tensor) -> torch.Tensor:
+    '''
+        args:
+        signal size: dim = 2
+        signal, kernel: complex tensor, assume the images are square. the last 2 dim of signal is the height, and width of images.
+    '''
+    s_size = list(signal.size())
+    k_size = list(f_kernel.size())
+    padding = (k_size[-1] - s_size[-1])//2
+    if (k_size[-1] - s_size[-1])%2== 0:
+        signal = torch.nn.functional.pad(signal, (padding, padding))
+    else:
+        signal = torch.nn.functional.pad(signal, (padding, padding + 1))
+
+    f_signal = torch.fft.fftn(signal, dim = (-1))
+
+    f_output = f_signal * f_kernel
+    f_output = torch.fft.ifftn(f_output, dim = (-1))
+    f_output = f_output[padding:padding + s_size[-1]]
+    
+    return f_output
+
 def fourier_conv(signal: torch.Tensor, f_kernel: torch.Tensor) -> torch.Tensor:
     '''
         args:
