@@ -54,7 +54,10 @@ class SCMT_1D():
         E_out = [E.cpu().detach().numpy() for E in E_out]
         return E_out
     
-    def optimize(self, notes, steps, lr = 0.01, minmax = False):
+    def optimize(self, notes, steps, lr = 0.01, minmax = False, loss_weights = None):
+        '''
+        loss_weights: we use loss_weights to compensate the intensity difference between different lam, when optimizing by minmax method.
+        '''
         if not self.far_field:
             raise Exception("Should initalize model with far_field=True")
         if self.COUPLING:
@@ -86,6 +89,9 @@ class SCMT_1D():
             Ifs = self.model(E0)
             if minmax:
                 losses = [loss_max_center(If, center, target_sigma) for If in Ifs]
+                if not (loss_weights is None):
+                    for idx, w in enumerate(loss_weights):
+                        losses[idx] = losses[idx] * w
                 loss = - np.inf
                 for tmp_loss in losses:
                     if tmp_loss > loss:

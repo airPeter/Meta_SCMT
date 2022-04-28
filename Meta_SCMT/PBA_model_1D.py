@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 from .utils import Model
 from scipy import special
-from SCMT_model_1D import freespace_layer
+from .SCMT_model_1D import freespace_layer
 
 class PBA_model(nn.Module):
     def __init__(self, prop_dis, GP, N, total_size, near_field = True):

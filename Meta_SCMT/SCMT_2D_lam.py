@@ -76,11 +76,11 @@ class SCMT_2D():
         E_out = [E.cpu().detach().numpy() for E in E_out]
         return E_out
     
-    def optimize(self, notes, steps, lr = 0.1, minmax = False, quarter = False):
+    def optimize(self, notes, steps, lr = 0.1, minmax = False, quarter = False, loss_weights = None):
         '''
         input:
             quarter: if true, maximize the corner instead of center. If train lens, this is equal to train a quarter of lens.
-        
+            loss_weights: we use loss_weights to compensate the intensity difference between different lam, when optimizing by minmax method.
         '''
         if not self.far_field:
             raise Exception("Should initalize model with far_field=True")
@@ -115,6 +115,9 @@ class SCMT_2D():
             if quarter:
                 if minmax:
                     losses = [max_corner(If, self.GP.Knn, self.GP.out_res, target_sigma) for If in Ifs]
+                    if not (loss_weights is None):
+                        for idx, w in enumerate(loss_weights):
+                            losses[idx] = losses[idx] * w
                     loss = - np.inf
                     for tmp_loss in losses:
                         if tmp_loss > loss:
@@ -124,14 +127,14 @@ class SCMT_2D():
                     loss = max_corner(If, self.GP.Knn, self.GP.out_res, target_sigma)
             else:
                 if minmax:
-                    losses = [max_center(If, center, target_sigma) for If in Ifs]
+                    losses = [max_center(If, (center, center), target_sigma) for If in Ifs]
                     loss = - np.inf
                     for tmp_loss in losses:
                         if tmp_loss > loss:
                             loss = tmp_loss
                 else:
                     idx = np.random.randint(0, len(self.GP.lams))
-                    loss = max_center(Ifs[idx], center, target_sigma)
+                    loss = max_center(Ifs[idx], (center, center), target_sigma)
 
             # Backpropagation
             optimizer.zero_grad()
