@@ -128,6 +128,9 @@ class SCMT_2D():
             else:
                 if minmax:
                     losses = [max_center(If, (center, center), target_sigma) for If in Ifs]
+                    if not (loss_weights is None):
+                        for idx, w in enumerate(loss_weights):
+                            losses[idx] = losses[idx] * w
                     loss = - np.inf
                     for tmp_loss in losses:
                         if tmp_loss > loss:

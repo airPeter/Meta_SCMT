@@ -218,12 +218,13 @@ class Fullwave_2D():
         E_far = np.squeeze(data_far['E'])
         I_far = np.sum(np.square(np.abs(E_far)), axis=0)
         xs_far = data_far['xmesh']
+        ys_far = data_far['ymesh']
         ideal_meta = Ideal_meta(self.GP)
         ideal_meta.model_init(self.N, self.prop_dis, lens = True)
         I_ideal = ideal_meta.forward()
-        I_ideal = resize_2d_intensity(I_ideal, ideal_meta.dx, np.mean(np.diff(xs_far)))
+        I_ideal = resize_2d_intensity(I_ideal, ideal_meta.dx, xs_far, ys_far)
         power_ideal = np.sum(I_ideal)
-        r = int(round(self.efficiency_length / ideal_meta.dx / 2))
+        r = int(round(self.efficiency_length / np.mean(np.diff(xs_far)) / 2))
         c = I_ideal.shape[0]//2
         I_focus_ideal = I_ideal[c - r: c + r, c - r: c + r]
         power_ideal_focus = I_focus_ideal.sum()
@@ -368,7 +369,7 @@ def show_intensity(I, phy_size_x, phy_size_y):
     plt.title("Intensity")
     plt.show()
 
-def resize_2d_intensity(field, step1, step2):
+def resize_2d_intensity(field, step1, xs_far, ys_far):
     '''
       tooooooooo slow!
     input:
@@ -381,14 +382,14 @@ def resize_2d_intensity(field, step1, step2):
     phy_size_x = field.shape[1] * step1
     phy_size_y = field.shape[0] * step1
     
-    x = np.linspace(0, phy_size_x, num = field.shape[1])
-    y = np.linspace(0, phy_size_y, num = field.shape[0])
+    x = np.linspace(-phy_size_x/2, phy_size_x/2, num = field.shape[1])
+    y = np.linspace(-phy_size_y/2, phy_size_y/2, num = field.shape[0])
 
     f_real = interpolate.interp2d(x, y, field, kind='linear')
     
-    x = np.arange(0, phy_size_x, step2)
-    y = np.arange(0, phy_size_y, step2)
-    out = f_real(x, y)
+    # x = np.arange(0, phy_size_x, step2)
+    # y = np.arange(0, phy_size_y, step2)
+    out = f_real(xs_far, ys_far)
     return out
     
 def resize_2d(field, step1, step2):

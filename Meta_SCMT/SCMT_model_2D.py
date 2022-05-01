@@ -264,11 +264,11 @@ class SCMT_Model(nn.Module):
         self.metalayer1.reset(path)
 
 class Ideal_model(nn.Module):
-    def __init__(self, prop_dis, GP, total_size):
+    def __init__(self, prop_dis, GP, total_size, dx):
         super(Ideal_model, self).__init__()
         self.prop = prop_dis
         self.phase = torch.nn.Parameter(torch.empty((total_size, total_size), dtype = torch.float))
-        self.freelayer1 = freespace_layer(self.prop, GP.lam, total_size, GP.period / GP.out_res)
+        self.freelayer1 = freespace_layer(self.prop, GP.lam, total_size, dx)
     def forward(self, E0):
         E = E0 * torch.exp(1j * self.phase)
         Ef = self.freelayer1(E)

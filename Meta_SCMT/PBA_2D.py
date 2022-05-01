@@ -1,6 +1,7 @@
+from turtle import up
 import numpy as np
 import matplotlib.pyplot as plt
-from .SCMT_model_2D import Metalayer, SCMT_Model
+from .PBA_model_2D import PBA_model
 import torch
 from torch import optim
 import os
@@ -8,23 +9,17 @@ from torch.utils.tensorboard import SummaryWriter
 from .utils import gen_decay_rate, quarter2whole, gaussian_func, toint
 from tqdm import tqdm
 from .loss_lib_2D import max_center, max_corner
-import cv2
 import warnings
 import math
 
-class SCMT_2D():
+class PBA_2D():
     def __init__(self, GP):
         self.GP = GP
         self.model = None
-        self.APPROX = None
-        self.COUPLING = None
-        self.Euler_steps = None
         self.N = None
-        self.Ni = None
-        self.k_row = None
         self.prop_dis = None
         
-    def init_model(self, N, prop_dis, APPROX, Ni = None, k_row = None, Euler_steps = None, devs = None, COUPLING = True, init_hs = None, far_field = False):
+    def init_model(self, N, prop_dis, init_hs = None, far_field = False):
         '''
             the layers will be used when re building the fitted model. If you change any of this default values when you do the fitting.
             you should also change at here.
@@ -33,32 +28,14 @@ class SCMT_2D():
         self.prop_dis = prop_dis
         self.total_size = (self.N + 2 * self.GP.Knn + 1) * self.GP.out_res
         self.far_field = far_field
-        if Ni == None:
-            self.Ni = 11 * N
-        else:
-            self.Ni = Ni
-        if k_row == None:
-            self.k_row = N
-        else:
-            self.k_row = k_row
-        self.APPROX = APPROX
-        self.COUPLING = COUPLING
-        if devs is None:
-            self.devs = ["cuda"] if torch.cuda.is_available() else ["cpu"]
-        else:
-            self.devs = devs
-        print("Optimizing by devs:", str(self.devs))
-        if Euler_steps == None:
-            self.Euler_steps = 1000
-        else:
-            self.Euler_steps = Euler_steps
+
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
         if far_field:
-            self.model = SCMT_Model(self.prop_dis, self.Euler_steps, self.devs, self.GP, self.COUPLING, self.APPROX, self.Ni, self.k_row, self.N)
-            self.h_paras_name = 'metalayer1.h_paras'
+            self.model = PBA_model(self.prop_dis, self.GP, self.N, self.total_size, near_field = False)
         else:
-            self.model = Metalayer(self.Euler_steps, self.devs, self.GP, self.COUPLING, self.APPROX, self.Ni, self.k_row, self.N)
-            self.h_paras_name = 'h_paras'
+            self.model = PBA_model(self.prop_dis, self.GP, self.N, self.total_size, near_field = True)
         self.init_paras(self.model, self.GP.path, init_hs)
+        self.model = self.model.to(self.device)
         return None
     
     def forward(self, theta = 0):
@@ -68,7 +45,7 @@ class SCMT_2D():
         X, _ = np.meshgrid(x, y)
         E0 = np.exp(1j * self.GP.k * np.sin(theta) * X)/self.total_size
         E0 = torch.tensor(E0, dtype = torch.complex64)
-        E0 = E0.to(self.devs[0])
+        E0 = E0.to(self.device)
         E_out = self.model(E0)
         E_out = E_out.cpu().detach().numpy()
         return E_out
@@ -86,10 +63,7 @@ class SCMT_2D():
         print("optimize lens, incident planewave angle range: " + str(theta))
         if not self.far_field:
             raise Exception("Should initalize model with far_field=True")
-        if self.COUPLING:
-            out_path = 'output_cmt/'
-        else:
-            out_path = 'output_no_coupling/'
+        out_path = 'output_PBA/'
         if not os.path.exists(out_path):
             os.mkdir(out_path)
         out_path = out_path + notes + '/'
@@ -122,7 +96,7 @@ class SCMT_2D():
                     ky = self.GP.k * np.sin(rand_theta) * np.sin(rand_phi)
                     E0 = np.exp(1j * (kx * X + ky * Y))/self.total_size
                     E0 = torch.tensor(E0, dtype = torch.complex64)
-                    E0 = E0.to(self.devs[0])
+                    E0 = E0.to(self.device)
                     # Compute prediction error
                     If = self.model(E0)
                     loss = max_center(If, (cy, cx), target_sigma)
@@ -130,10 +104,10 @@ class SCMT_2D():
                     self.model.zero_grad()
                     loss.backward()
                     with torch.no_grad():
-                        hs_grads.append(self.model.metalayer1.h_paras.grad)
+                        hs_grads.append(self.model.h_paras.grad)
                 idx = np.argmax(np.array(sub_losses))
                 grad = hs_grads[idx]
-                self.model.metalayer1.h_paras.grad.copy_(grad)
+                self.model.h_paras.grad.copy_(grad)
                 optimizer.step()
                         
             else:
@@ -149,7 +123,7 @@ class SCMT_2D():
                 ky = self.GP.k * np.sin(rand_theta) * np.sin(rand_phi)
                 E0 = np.exp(1j * (kx * X + ky * Y))/self.total_size
                 E0 = torch.tensor(E0, dtype = torch.complex64)
-                E0 = E0.to(self.devs[0])
+                E0 = E0.to(self.device)
                 # Compute prediction error
                 If = self.model(E0)
                 loss = max_center(If, (cy, cx), target_sigma)
@@ -170,7 +144,7 @@ class SCMT_2D():
                 writer.add_scalar('training loss',
                                 scalar_value = loss.item(), global_step = step)
                 writer.add_figure('hs',
-                                plot_hs(self.model.metalayer1.hs.cpu().detach().numpy(), self.N),
+                                plot_hs(self.model.hs.cpu().detach().numpy(), self.N),
                                 global_step= step)
                 writer.add_figure('If',
                                 plot_If(If.cpu().detach().numpy(), f"theta: {math.degrees(rand_theta):.2f}, phi: {math.degrees(rand_phi):.2f}"),
@@ -182,7 +156,7 @@ class SCMT_2D():
             print("final lr:", lr)
         else:
             print("final lr:", my_lr_scheduler.get_last_lr())
-        out_hs = self.model.metalayer1.hs.cpu().detach().numpy()
+        out_hs = self.model.hs.cpu().detach().numpy()
         out_hs = out_hs.reshape(self.N, self.N)
         np.savetxt(out_path + 'waveguide_widths.csv', out_hs, delimiter=",")
         print('parameters saved in.', out_path)
@@ -196,10 +170,7 @@ class SCMT_2D():
         '''
         if not self.far_field:
             raise Exception("Should initalize model with far_field=True")
-        if self.COUPLING:
-            out_path = 'output_cmt/'
-        else:
-            out_path = 'output_no_coupling/'
+        out_path = 'output_PBA/'
         if not os.path.exists(out_path):
             os.mkdir(out_path)
         out_path = out_path + notes + '/'
@@ -215,7 +186,7 @@ class SCMT_2D():
         X, _ = np.meshgrid(x, y)
         E0 = np.exp(1j * self.GP.k * np.sin(theta) * X)/self.total_size
         E0 = torch.tensor(E0, dtype = torch.complex64)
-        E0 = E0.to(self.devs[0])
+        E0 = E0.to(self.device)
         radius = self.N * self.GP.period/2
         NA =  radius/ np.sqrt(radius**2 + self.prop_dis**2)
         target_sigma = self.GP.lam / (2 * NA) / (self.GP.period / self.GP.out_res)
@@ -223,7 +194,7 @@ class SCMT_2D():
         center = int(round(self.total_size//2))
         # circle = self.circle_mask(center, target_sigma)
         # circle = torch.tensor(circle, dtype = torch.float)
-        # circle = circle.to(self.devs[0])
+        # circle = circle.to(self.device)
         for step in tqdm(range(steps + 1)):
             # Compute prediction error
             If = self.model(E0)
@@ -247,7 +218,7 @@ class SCMT_2D():
                 writer.add_scalar('training loss',
                                 scalar_value = loss.item(), global_step = step)
                 writer.add_figure('hs',
-                                plot_hs(self.model.metalayer1.hs.cpu().detach().numpy(), self.N),
+                                plot_hs(self.model.hs.cpu().detach().numpy(), self.N),
                                 global_step= step)
                 writer.add_figure('If',
                                 plot_If(If.cpu().detach().numpy()),
@@ -256,7 +227,7 @@ class SCMT_2D():
                 # loss_list.append(loss)
                 # print(f"loss: {loss:>7f}  [{step:>5d}/{train_steps:>5d}]")
         print("final lr:", my_lr_scheduler.get_last_lr())
-        out_hs = self.model.metalayer1.hs.cpu().detach().numpy()
+        out_hs = self.model.hs.cpu().detach().numpy()
         out_hs = out_hs.reshape(self.N, self.N)
         if quarter:
             np.savetxt(out_path + 'waveguide_widths_quarter.csv', out_hs, delimiter=",")
@@ -265,11 +236,6 @@ class SCMT_2D():
         print('parameters saved in.', out_path)
         return None
 
-    def circle_mask(self,center, sigma):
-        radius = int(round(sigma//2 + 1))
-        circle = np.zeros((self.total_size, self.total_size))
-        circle = cv2.circle(circle, (center, center), radius, 1, -1)
-        return circle
     
     def init_paras(self, model, cache_path, init_hs = None):
         model.reset(cache_path)
@@ -288,13 +254,10 @@ class SCMT_2D():
             hs_paras = np.minimum(np.maximum(hs_paras, 0.01), 0.99)
             #becuase in our model we use Sigmoid  function, here, the hs paras is generated by inverse function.
             init_hs_para = np.log(hs_paras / (1 - hs_paras)) 
-            init_hs_para = init_hs_para.reshape(self.N**2, )
+            init_hs_para = init_hs_para.reshape(self.N, self.N)
             init_hs_para = torch.tensor(init_hs_para, dtype = torch.float)
             state_dict = model.state_dict()
-            if self.far_field:
-                state_dict['metalayer1.h_paras'] = init_hs_para
-            else:
-                state_dict['h_paras'] = init_hs_para
+            state_dict['h_paras'] = init_hs_para
             model.load_state_dict(state_dict)
             #with torch.no_grad():
             #    model.metalayer1.h_paras.data = h_paras_initial

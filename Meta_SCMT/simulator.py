@@ -31,6 +31,7 @@ from .SCMT_2D import SCMT_2D
 from .fullwave_2D import Fullwave_2D
 from .PBA_design import PBA
 from .PBA_1D import PBA_1D
+from .PBA_2D import PBA_2D
 from .ideal_meta import Ideal_meta
 from .ideal_meta_1D import Ideal_meta_1D
 class GP():
@@ -101,4 +102,5 @@ class Sim():
             self.scmt = SCMT_2D(self.GP)
             self.fullwave = Fullwave_2D(self.GP)
             self.PBA = PBA(self.GP, 2)
+            self.pba_opt = PBA_2D(self.GP)
             self.ideal_meta = Ideal_meta(self.GP)

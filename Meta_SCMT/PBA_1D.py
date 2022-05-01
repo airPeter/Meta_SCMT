@@ -97,15 +97,11 @@ class PBA_1D():
                     self.model.zero_grad()
                     loss.backward()
                     with torch.no_grad():
-                        hs_grads.append(self.model.metalayer1.h_paras.grad)
+                        hs_grads.append(self.model.h_paras.grad)
                 idx = np.argmax(np.array(sub_losses))
                 grad = hs_grads[idx]
-                self.model.metalayer1.h_paras.grad.copy_(grad)
+                self.model.h_paras.grad.copy_(grad)
                 optimizer.step()
-                #with torch.no_grad():
-                    #grad = hs_grads[idx]
-                    #updated_paras = custom_optimizer(grad, self.model.metalayer1.h_paras, lr)
-                    #self.model.metalayer1.h_paras.copy_(updated_paras)
                         
             else:
                 rand_theta = np.random.uniform(theta[0], theta[1])

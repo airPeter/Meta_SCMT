@@ -15,7 +15,7 @@ class PBA_model(nn.Module):
         self.h_max = GP.h_max
         self.sig = torch.nn.Sigmoid()
         self.h_paras = torch.nn.Parameter(torch.empty((N,N), dtype = torch.float))
-        self.freelayer1 = freespace_layer(self.prop, self.GP.lam, total_size, self.GP.dx)
+        self.freelayer1 = freespace_layer(self.prop, self.GP.lam, total_size, self.GP.period/self.GP.out_res)
         paras = np.load(self.GP.path + "PBA_paras.npy", allow_pickle= True)
         paras = paras.item()
         self.genphase = gen_Phase(nodes = paras['nodes'], layers = paras['layers'])
@@ -24,8 +24,8 @@ class PBA_model(nn.Module):
         self.hs = self.sig(self.h_paras) * (self.h_max - self.h_min) + self.h_min
         self.phase = self.genphase(self.hs.view(-1, 1))
         self.phase =self.phase.view(1, 1, self.N, self.N)
-        self.phase = torch.nn.functional.interpolate(self.phase, size=(self.GP.res * self.N, self.GP.res * self.N), mode='bilinear',align_corners=False)
-        pad_size = (self.total_size - self.GP.res * self.N)
+        self.phase = torch.nn.functional.interpolate(self.phase, size=(self.GP.out_res * self.N, self.GP.out_res * self.N), mode='bilinear',align_corners=False)
+        pad_size = (self.total_size - self.GP.out_res * self.N)
         pad1 = pad_size//2
         pad2 = pad_size - pad1
         self.phase = torch.nn.functional.pad(self.phase, pad = (pad1, pad2, pad1, pad2), mode = 'replicate')
