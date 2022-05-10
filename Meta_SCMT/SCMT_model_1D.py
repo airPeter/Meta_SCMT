@@ -117,6 +117,9 @@ class gen_U0(nn.Module):
             neff: refractive index of each mode. shape [N, modes]
             T: modes amplitude coupled in. shape [N, number of modes]
         '''
+        pad1 = (2 * self.Knn + 1)/self.res//2
+        pad2 = (2 * self.Knn + 1)/self.res - (2 * self.Knn + 1)/self.res//2
+        E0 = torch.nn.functional.pad(E0, pad = (pad1, pad2), mode='constant', value=0.0)
         neff = self.neffnn(hs.view(-1, 1))
         for i in range(6):
             self.E0_slice[:,0, i * self.res: (i + 1) * self.res] = \
@@ -162,6 +165,9 @@ class gen_En(nn.Module):
                 center = int(center)
                 radius = int((self.Knn + 1) * self.res)
                 self.En[center - radius: center + radius] += temp_Ey
+        start = (2 * self.Knn + 1) * self.res//2
+        end = start + self.N * self.res
+        self.En = self.En[start:end]
         return self.En
         
 class gen_C(nn.Module):
@@ -237,7 +243,7 @@ class SCMT_Model(nn.Module):
         super(SCMT_Model, self).__init__()
 
         self.prop = prop_dis
-        total_size = (N + 2 * GP.Knn + 1) * GP.res
+        total_size = (N) * GP.res
         self.metalayer1 = Metalayer(GP, COUPLING, N)
         self.freelayer1 = freespace_layer(self.prop, GP.lam, total_size, GP.dx)
     def forward(self, E0):

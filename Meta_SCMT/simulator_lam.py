@@ -7,7 +7,7 @@ import os
 from .SCMT_1D_lam import SCMT_1D
 from .PBA_1D_lam import PBA_1D
 from .SCMT_2D_lam import SCMT_2D
-
+from .PBA_2D_lam import PBA_2D
 class GP():
     def __init__(self,dim, modes, period, res, downsample_ratio, wh, lams, n_sub, n_wg, h_min, h_max, dh, paths):
         self.dim = dim #dim = 1 or 2.
@@ -44,4 +44,5 @@ class SimLam():
             self.pba_opt = PBA_1D(self.GP)
         if self.GP.dim == 2:
             self.scmt = SCMT_2D(self.GP)
+            self.pba_opt = PBA_2D(self.GP)
 

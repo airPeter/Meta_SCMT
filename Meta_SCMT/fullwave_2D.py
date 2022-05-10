@@ -38,9 +38,9 @@ class Fullwave_2D():
         # Simulation domain size (in micron)
         spacing = 1 * self.GP.lam
         z_size = self.GP.wh + 2 * spacing + prop_dis * 1.1
-        x_size = (N + 2 * self.GP.Knn + 1) * self.GP.period
+        x_size = (N) * self.GP.period
         self.x_size = x_size
-        xh = x_size / 2
+        xh = N * self.GP.period
         NA = np.sin(xh / np.sqrt(xh**2 + prop_dis**2))
         print(f"numerical aperture: {NA:.2f}")
         self.min_focal_spot = self.GP.lam / 2 / NA
@@ -194,6 +194,15 @@ class Fullwave_2D():
         return out_Ef
 
     def results_analysis(self,path = None):
+        '''
+            In theory, the intensity should be the norm of poynting vector. S = E x H.
+            However, in freespace the ||S|| is very close to a||E||, a is a constant.
+            Basically, Ey dot Hx is very propotionally close to Ey^2. 
+            according the Maxwell equation, Hx ~ \partial_z(Ey). This shows that at any point x0, we can aaproximate Ey by
+            Ey(x0)exp(1jkz), which means Ey(x, z) ~ Ey(x)exp(1jkz). This is very suprising results.
+             
+        
+        '''
         def FWHM(xs, Is):
             # assume uniform sampling in xs
             dx = np.mean(np.diff(xs))

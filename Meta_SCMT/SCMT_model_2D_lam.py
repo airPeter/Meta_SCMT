@@ -168,7 +168,7 @@ class SCMT_Model(nn.Module):
     def __init__(self, prop_dis, Euler_steps, devs, GP, COUPLING, APPROX, Ni, k_row, N):
         super(SCMT_Model, self).__init__()
         self.prop = prop_dis
-        total_size = (N + 2 * GP.Knn + 1) * GP.res
+        total_size = (N) * GP.res
         self.metalayer1 = Metalayer(Euler_steps, devs, GP, COUPLING, APPROX, Ni, k_row, N)
         self.lams = GP.lams
         freelayers = []

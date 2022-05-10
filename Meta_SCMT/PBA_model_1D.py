@@ -26,10 +26,10 @@ class PBA_model(nn.Module):
         self.phase = self.genphase(self.hs.view(-1, 1))
         self.phase =self.phase.view(1, 1, -1)
         self.phase = torch.nn.functional.interpolate(self.phase, size=(self.GP.res * self.N), mode='linear',align_corners=False)
-        pad_size = (self.total_size - self.GP.res * self.N)
-        pad1 = pad_size//2
-        pad2 = pad_size - pad1
-        self.phase = torch.nn.functional.pad(self.phase, pad = (pad1, pad2), mode = 'replicate')
+        # pad_size = (self.total_size - self.GP.res * self.N)
+        # pad1 = pad_size//2
+        # pad2 = pad_size - pad1
+        # self.phase = torch.nn.functional.pad(self.phase, pad = (pad1, pad2), mode = 'replicate')
         self.phase = self.phase.view(-1,)
         E = E0 * torch.exp(1j * self.phase)
         if self.near_field:

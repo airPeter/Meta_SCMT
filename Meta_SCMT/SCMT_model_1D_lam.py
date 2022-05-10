@@ -71,7 +71,7 @@ class Metalayer_sub(torch.nn.Module):
         self.register_buffer('dis', dis)
     def forward(self, E0, hs):
         '''
-        size of E0: (N + 2 * (Knnc + 1)) * period_resolution
+        size of E0: (N) * period_resolution
         '''
         self.neffs = self.neffnn(hs.view(-1, 1))
         with torch.set_grad_enabled(False):
@@ -109,7 +109,7 @@ class SCMT_Model(nn.Module):
     def __init__(self, prop_dis, GP, COUPLING, N):
         super(SCMT_Model, self).__init__()
         self.prop = prop_dis
-        total_size = (N + 2 * GP.Knn + 1) * GP.res
+        total_size = (N) * GP.res
         self.metalayer1 = Metalayer(GP, COUPLING, N)
         self.lams = GP.lams
         freelayers = []

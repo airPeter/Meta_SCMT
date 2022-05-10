@@ -26,7 +26,7 @@ class PBA_2D():
         '''
         self.N = N
         self.prop_dis = prop_dis
-        self.total_size = (self.N + 2 * self.GP.Knn + 1) * self.GP.out_res
+        self.total_size = (self.N) * self.GP.out_res
         self.far_field = far_field
 
         self.device = "cuda" if torch.cuda.is_available() else "cpu"

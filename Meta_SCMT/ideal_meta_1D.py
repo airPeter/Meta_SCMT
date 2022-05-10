@@ -9,6 +9,9 @@ import math
 import cmath
 import time
 from .utils import lens_1D
+from .SCMT_model_1D import Ideal_model
+import torch
+
 class Ideal_meta_1D():
     def __init__(self, GP) -> None:
         self.GP =GP
@@ -31,7 +34,7 @@ class Ideal_meta_1D():
         self.prop_dis = prop_dis
         # Simulation domain size (in micron)
         dpml = 1
-        x_size = (self.N + 2 * self.GP.Knn + 1) * self.GP.period + 2 * dpml
+        x_size = (self.N) * self.GP.period + 2 * dpml
         x_lens, phase_lens = lens_1D(int(round(x_size * self.res)), 1/self.res, self.prop_dis, 2 * np.pi / self.GP.lam)
         #create ideal lens function.
         y_size = 2 * self.GP.lam + self.prop_dis + 2 * dpml
@@ -69,7 +72,7 @@ class Ideal_meta_1D():
         #cell_vol = mp.Volume(mp.Vector3(), size=cell_size)
         self.dft_obj = self.sim.add_dft_fields([mp.Ez], fcen, 0, 1, where=nonpml_vol)  
         self.sim.init_sim()
-        self.stop_condition_func = mp.stop_when_fields_decayed(dt=prop_dis * 5, c=mp.Ez, pt=mp.Vector3(0, y_plane + prop_dis), decay_by=1e-5)
+        self.stop_condition_func = mp.stop_when_fields_decayed(dt=prop_dis, c=mp.Ez, pt=mp.Vector3(0, y_plane + prop_dis), decay_by=1e-5)
         
         self.eps_data = self.sim.get_array(vol = nonpml_vol, component=mp.Dielectric)
         self.eps_data = self.eps_data.transpose()
@@ -91,17 +94,17 @@ class Ideal_meta_1D():
         ez_data = self.sim.get_dft_array(self.dft_obj, mp.Ez, 0)
         ez_data = ez_data.transpose()
         Iz_data = np.abs(ez_data)**2
-        out_phy_size = (2 * self.GP.Knn + 1 + self.N) * self.GP.period
+        out_phy_size = (self.N) * self.GP.period
         step1 = 1/self.res
         phy_size_x = Iz_data.shape[1] * step1
         phy_size_y = Iz_data.shape[0] * step1
         index_near = int(round((self.GP.lam)/step1))
         index_far = int(round((self.GP.lam + self.prop_dis)/step1))
-        index_in = int(round((self.GP.lam/2)/step1))
+        index_in = int(round((self.GP.lam/3 * 2)/step1))
         Ey_near = ez_data[index_near, :]
         Ey_far = ez_data[index_far, :]
         Ey_in = ez_data[index_in, :]
-        num_steps2 = (2 * self.GP.Knn + 1 + self.N) * self.GP.res
+        num_steps2 = (self.N) * self.GP.res
         xp = np.linspace(-phy_size_x/2, phy_size_x/2, num = ez_data.shape[1])
         x = np.linspace(-out_phy_size/2, out_phy_size/2, num_steps2)
         data_near = resize_1d(Ey_near, x, xp)
@@ -134,8 +137,51 @@ class Ideal_meta_1D():
             plt.show()
         else:
             plt.savefig(self.vis_path + "near_and_far_field.png")
-        return ez_data, data_near, data_far
+        return ez_data, data_in, data_near, data_far
 
+class Ideal_meta():
+    def __init__(self, GP) -> None:
+        self.GP = GP
+        self.model = None
+        self.total_size = None
+        
+    def model_init(self,N, prop_dis, init_phase = None, lens = False):
+        self.total_size = (N) * self.GP.res
+        if init_phase is None and lens == True:
+            _, init_phase = lens_1D(self.total_size, self.GP.dx, prop_dis, self.GP.k)
+        self.init_phase = init_phase
+        self.model = Ideal_model(prop_dis, self.GP, self.total_size)
+        init_phase = torch.tensor(init_phase, dtype = torch.float)
+        state_dict = self.model.state_dict()
+        state_dict['phase'] = init_phase
+        self.model.load_state_dict(state_dict)
+        print('Model initialized.')
+
+    def forward(self, E0 = None, theta = 0, vis = True):
+        if torch.cuda.is_available():
+            self.device = 'cuda'
+        else:
+            self.device = 'cpu'
+        print("using device: ", self.device)
+        if E0 is None:
+            X = np.arange(self.total_size) * self.GP.dx
+            E0 = np.exp(1j * self.GP.k * np.sin(theta) * X)/np.sqrt(self.total_size)
+        E0 = E0.reshape(self.total_size,)
+        I_in = (np.abs(E0)**2).sum()
+        E0 = torch.tensor(E0, dtype = torch.complex64).to(self.device)
+        model = self.model.to(self.device)
+        with torch.no_grad():
+            If = model(E0)
+        If = If.cpu().numpy()
+        I_out = If.sum()
+        phy_x = (np.arange(self.total_size) - (self.total_size - 1)/2) * self.GP.dx
+        print(f"I_in: {I_in:3f}, I_out: {I_out:3f}, I_out/I_in: {I_out/I_in:3f}.")
+        if vis:
+            plt.figure()
+            plt.plot(phy_x, If)
+            plt.show()
+        return phy_x, If
+    
 
 def resize_1d(field, x, xp):
     out_field = np.interp(x, xp, field)

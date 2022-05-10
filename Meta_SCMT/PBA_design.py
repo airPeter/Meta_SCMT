@@ -233,10 +233,14 @@ def gen_phase_from_width(width_phase_map, width_profile):
     phases_map = np.take(phases, indexes)
     phases_map = phases_map.reshape(shape)
     return phases_map
-    
+
 def get_phase(field):
     Ey = field[0][1]
-    phase = np.angle(Ey)
-    shape = Ey.shape[0]
-    center = shape//2
-    return phase[center, center]
+    Ey_zero = Ey.mean()
+    return np.angle(Ey_zero)
+# def get_phase(field):
+#     Ey = field[0][1]
+#     phase = np.angle(Ey)
+#     shape = Ey.shape[0]
+#     center = shape//2
+#     return phase[center, center]

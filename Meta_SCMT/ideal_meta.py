@@ -14,8 +14,8 @@ class Ideal_meta():
         self.total_size = None
         
     def model_init(self,N, prop_dis, init_phase = None, lens = False):
-        self.total_size = (N + 2 * self.GP.Knn + 1) * self.GP.res
-        self.dx = self.GP.period/self.GP.res
+        self.total_size = (N) * self.GP.out_res
+        self.dx = self.GP.period/self.GP.out_res
         if init_phase is None and lens == True:
             _, init_phase = lens_2D(self.total_size, self.dx, prop_dis, self.GP.k)
         self.init_phase = init_phase

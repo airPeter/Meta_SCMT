@@ -13,9 +13,10 @@ def max_center(If, center, max_length):
 #     radius = max_length
 #     circle = np.zeros((s, s))
 #     circle = cv2.circle(circle, (center, center), radius, 1, -1)
-def max_corner(If, Knn, res, max_length):
+def max_corner(If, max_length):
     #the field corner is not the true corner of the metasurface. there's some boundary of the field.
     #use start to skip the boundary to find the true corner.
-    start = (Knn + 1) * res
+    #start = (Knn + 1) * res
+    start = 0
     intensity = torch.sum(torch.abs(If[start:start + int(max_length//2) + 1,start:start + int(max_length//2) + 1]))
     return - intensity

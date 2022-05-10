@@ -1,12 +1,12 @@
 # standard python imports
-from turtle import back
+import imp
 import numpy as np
 import matplotlib.pyplot as plt
 import warnings
 import math
 import cmath
 import time
-
+from .ideal_meta_1D import Ideal_meta
 class Fullwave_1D():
     def __init__(self, GP) -> None:
         self.GP =GP
@@ -41,9 +41,14 @@ class Fullwave_1D():
         self.out_res = int(round(1 / self.GP.dx))
         self.N = N
         self.prop_dis = prop_dis
+        xh = N * self.GP.period
+        NA = np.sin(xh / np.sqrt(xh**2 + prop_dis**2))
+        print(f"numerical aperture: {NA:.2f}")
+        self.min_focal_spot = self.GP.lam / 2 / NA
+        self.efficiency_length = 6 * self.min_focal_spot
         # Simulation domain size (in micron)
         dpml = 1
-        x_size = (self.N + 2 * self.GP.Knn + 1) * self.GP.period + 2 * dpml
+        x_size = (self.N) * self.GP.period + 2 * dpml
         y_size = 2 * self.GP.lam + self.GP.wh + self.prop_dis + 2 * dpml
         print(f"total_sim size x: {x_size:.2f}, y:{y_size:.2f}")
         y_plane = - y_size/2 + dpml + self.GP.lam
@@ -127,17 +132,17 @@ class Fullwave_1D():
         ez_data = self.sim.get_dft_array(self.dft_obj, mp.Ez, 0)
         ez_data = ez_data.transpose()
         Iz_data = np.abs(ez_data)**2
-        out_phy_size = (2 * self.GP.Knn + 1 + self.N) * self.GP.period
+        out_phy_size = (self.N) * self.GP.period
         step1 = 1/self.res
         phy_size_x = Iz_data.shape[1] * step1
         phy_size_y = Iz_data.shape[0] * step1
         index_near = int(round((self.GP.lam + self.GP.wh)/step1))
         index_far = int(round((self.GP.lam + self.GP.wh + self.prop_dis)/step1))
-        index_in = int(round((self.GP.lam/2)/step1))
+        index_in = int(round((self.GP.lam/3 * 2)/step1))
         Ey_near = ez_data[index_near, :]
         Ey_far = ez_data[index_far, :]
         Ey_in = ez_data[index_in, :]
-        num_steps2 = (2 * self.GP.Knn + 1 + self.N) * self.GP.res
+        num_steps2 = (self.N) * self.GP.res
         xp = np.linspace(-phy_size_x/2, phy_size_x/2, num = ez_data.shape[1])
         x = np.linspace(-out_phy_size/2, out_phy_size/2, num_steps2)
         data_near = resize_1d(Ey_near, x, xp)
@@ -170,7 +175,7 @@ class Fullwave_1D():
             plt.show()
         else:
             plt.savefig(self.vis_path + "near_and_far_field.png")
-        return ez_data, data_near, data_far
+        return ez_data, data_in, data_near, data_far
     
     def tidy3d_init_sim(self, prop_dis, N, hs, res = None, theta = 0, empty = False):
         # tidy3D import
@@ -188,6 +193,11 @@ class Fullwave_1D():
         self.out_res = int(round(1 / self.GP.dx))
         self.N = N
         self.prop_dis = prop_dis
+        xh = N * self.GP.period
+        NA = np.sin(xh / np.sqrt(xh**2 + prop_dis**2))
+        print(f"numerical aperture: {NA:.2f}")
+        self.min_focal_spot = self.GP.lam / 2 / NA
+        self.efficiency_length = 6 * self.min_focal_spot
         # Simulation domain size (in micron)
         z_size = self.GP.wh + 2 + prop_dis
         x_wgs = N * self.GP.period
@@ -245,7 +255,7 @@ class Fullwave_1D():
         #print(psource)
         gaussian_beam = td.GaussianBeam(
             normal='z',
-            center=[0, 0, -z_size/2 + 0.9],
+            center=[0, 0, -z_size/2 + 0.1],
             source_time=td.GaussianPulse(fcen, fwidth),
             angle_theta=theta,
             angle_phi=0,
@@ -253,16 +263,19 @@ class Fullwave_1D():
             waist_radius= x_wgs * 10,
             pol_angle=np.pi/2) #S polarization.
         #x-z plane monitor.
-        xz_mnt = td.FreqMonitor(center=[0, 0, 0], size=[x_size, 0, z_size], freqs=[fcen])
+        monitor_xz = td.FreqMonitor(center=[0, 0, 0], size=[x_size, 0, z_size], freqs=[fcen])
         # focal plane monitor.
-        focal_mnt = td.FreqMonitor(center=[0, 0, z_plane + self.GP.wh + prop_dis], size=[x_wgs, y_size, 0], freqs=[fcen])
-        #in_mnt = td.FreqMonitor(center=[0, 0, -z_size/2 + 0.6], size=[x_wgs, y_size, 0], freqs=[fcen])
+        monitor_far = td.FreqMonitor(center=[0, 0, z_plane + self.GP.wh + prop_dis], size=[x_wgs, y_size, 0], freqs=[fcen])
+        monitor_near = td.FreqMonitor(center=[0, 0, z_plane + self.GP.wh + self.GP.lam/2], size=[x_wgs, y_size, 0], freqs=[fcen])
+        monitor_in = td.FreqMonitor(center=[0, 0, -z_size/2 + 0.2], size=[x_wgs, y_size, 0], freqs=[fcen])
+        monitor_far = td.FreqMonitor(center=[0, 0, z_plane + self.GP.wh + prop_dis], size=[self.efficiency_length, y_size, 0], freqs=[fcen])
+        
         # Initialize simulation
         self.sim = td.Simulation(size=sim_size,
                             resolution=self.res,
                             structures=waveguides,
                             sources=[gaussian_beam],
-                            monitors=[xz_mnt, focal_mnt],
+                            monitors=[monitor_xz, monitor_in, monitor_near, monitor_far, monitor_focus],
                             run_time=run_time,
                             pml_layers=pml_layers)    
         _, ax = plt.subplots(1, 1, figsize=(6, 6))
@@ -309,9 +322,10 @@ class Fullwave_1D():
                 raise Exception("init sim first, then you can download data.")
             self.sim.load_results(path + 'monitor_data.hdf5')
         monitors = self.sim.monitors
-        mdata = self.sim.data(monitors[0])
+        monitor_xz, monitor_in, monitor_near, monitor_far, monitor_focus = monitors
+        mdata = self.sim.data(monitor_xz)
         Ey_xz_raw = mdata['E'][1,:,0,:,0].T
-        out_phy_size = (2 * self.GP.Knn + 1 + self.N) * self.GP.period
+        out_phy_size = (self.N) * self.GP.period
         step1 = self.sim.grid.mesh_step[0]
         # r = int(round(x_out_size / step1/2))
         # c = Ey_xz_raw.shape[1]//2
@@ -321,11 +335,11 @@ class Fullwave_1D():
         phy_size_y = Ey_xz_raw.shape[0] * step1
         index_near = int(round((1 + self.GP.wh)/step1))
         index_far = int(round((1 + self.GP.wh + self.prop_dis)/step1))
-        index_in = int(round((0.6)/step1))
+        index_in = int(round((0.2)/step1))
         Ey_near = Ey_xz_raw[index_near, :]
         Ey_far = Ey_xz_raw[index_far, :]
         Ey_in = Ey_xz_raw[index_in, :]
-        num_steps2 = (2 * self.GP.Knn + 1 + self.N) * self.GP.res
+        num_steps2 = (self.N) * self.GP.res
         xp = np.linspace(-phy_size_x/2, phy_size_x/2, num = Ey_xz_raw.shape[1])
         x = np.linspace(-out_phy_size/2, out_phy_size/2, num_steps2)
         data_near = resize_1d(Ey_near, x, xp)
@@ -357,8 +371,118 @@ class Fullwave_1D():
             plt.show()
         else:
             plt.savefig(self.vis_path + "near_and_far_field.png")
-        return Ey_xz_raw, data_near, data_far
+        return Ey_xz_raw, data_in, data_near, data_far
 
+    def results_analysis(self,path = None):
+        '''
+            In theory, the intensity should be the norm of poynting vector. S = E x H.
+            However, in freespace the ||S|| is very close to a||E||, a is a constant.
+            Basically, Ey dot Hx is very propotionally close to Ey^2. 
+            according the Maxwell equation, Hx ~ \partial_z(Ey). This shows that at any point x0, we can aaproximate Ey by
+            Ey(x0)exp(1jkz), which means Ey(x, z) ~ Ey(x)exp(1jkz). This is very suprising results.
+        '''
+        def FWHM(xs, Is):
+            # assume uniform sampling in xs
+            dx = np.mean(np.diff(xs))
+            hm = np.max(Is) / 2.0
+            return dx * np.sum(Is > hm)
+        if path:
+            if self.sim is None:
+                raise Exception("init sim first, then you can download data.")
+            self.sim.load_results(path + 'monitor_data.hdf5')
+        monitors = self.sim.monitors
+        monitor_xz, monitor_in, monitor_near, monitor_far, monitor_focus = monitors
+        data_far = self.sim.data(monitor_far)
+        xs_far = data_far['xmesh']
+        E_far = np.squeeze(data_far['E'])
+        I_far = np.sum(np.square(np.abs(E_far)), axis=0)
+        fwhm = FWHM(xs_far, I_far)
+        print(f'fwhm = {fwhm:.4f} um, {(fwhm / self.GP.lam):.2f} $\lambda$')
+        ideal_meta = Ideal_meta(self.GP)
+        ideal_meta.model_init(self.N, self.prop_dis, lens = True)
+        xs_ideal, I_ideal = ideal_meta.forward()
+        I_ideal = np.interp(xs_far, xs_ideal, I_ideal)
+        power_ideal = np.sum(I_ideal)
+        r = int(round(self.efficiency_length / np.mean(np.diff(xs_far)) / 2))
+        c = I_ideal.shape[0]//2
+        I_focus_ideal = I_ideal[c - r: c + r]
+        power_ideal_focus = I_focus_ideal.sum()
+        print(f'Ideal focal area power/total_far_field_power = {power_ideal_focus/ power_ideal * 100:.2f}%')
+        I_far_normalized = I_far / np.sum(I_far) * power_ideal
+        strehl_ratio = np.max(I_far_normalized) / np.max(I_ideal)
+        
+        #diff_lim = airy(xs)
+        fwhm_airy = FWHM(xs_far, I_ideal)
+        print(f'fwhm_airy = {fwhm_airy:.4f} um,  {(fwhm_airy / self.GP.lam):.2f} $\lambda$')
+
+        plt.plot(xs_far / self.GP.lam, I_far_normalized, label='measured')
+        plt.plot(xs_far / self.GP.lam, I_ideal, label='diffraction limited')
+        plt.legend()
+        plt.title(f'FWHM = {(fwhm / self.GP.lam):.4f} $\lambda$, {(fwhm*1000):.2f} nm , Strehl ratio = {strehl_ratio:.4f}')
+        plt.xlabel('axis position ($\lambda_0$)')
+        plt.ylabel('intensity (normalized)')
+        plt.show()     
+
+        power_in = self.sim.flux(monitor_in)[0][0]
+        power_near = self.sim.flux(monitor_near)[0][0]
+        power_far = self.sim.flux(monitor_far)[0][0]
+        power_focus = self.sim.flux(monitor_focus)[0][0]
+
+        eff_trans = power_near / power_in
+        eff_far = power_far / power_in
+        eff_focus = power_focus / power_in
+
+        print(f'transmission efficiency = {(eff_trans*100):.2f}%')
+        print(f'far field efficiency = {(eff_far*100):.2f}%')
+        print(f'focusing efficiency = {(eff_focus*100):.2f}%')
+        print(f'focal area power/total_far_field_power = {power_focus / power_far * 100:.2f}%')
+
+    # def results_analysis(self, data_in, data_near, data_far, ideal_far):
+    #     def FWHM(dx, Is):
+    #         hm = np.max(Is) / 2.0
+    #         return dx * np.sum(Is > hm)
+    #     I_far = np.abs(data_far['Ey'])**2
+    #     fwhm = FWHM(self.GP.dx, I_far)
+    #     print(f'fwhm = {fwhm:.4f} um, {(fwhm / self.GP.lam):.2f} $\lambda$')
+    #     #theo_fwhm = 1.025 * self.GP.lam * self.prop_dis / self.x_size
+        
+    #     I_ideal = np.abs(ideal_far['Ey'])**2
+    #     power_ideal = np.sum(I_ideal)
+    #     r = int(round(self.efficiency_length / self.GP.dx / 2))
+    #     c = I_ideal.shape[0]//2
+    #     I_focus_ideal = I_ideal[c - r: c + r]
+    #     I_focus = I_far[c - r: c + r]
+    #     power_ideal_focus = I_focus_ideal.sum()
+    #     print(f'Ideal focal area power/total_far_field_power = {power_ideal_focus/ power_ideal * 100:.2f}%')
+    #     I_far_normalized = I_far / np.sum(I_far) * power_ideal
+    #     strehl_ratio = np.max(I_far_normalized) / np.max(I_ideal)
+        
+    #     #diff_lim = airy(xs)
+    #     fwhm_airy = FWHM(self.GP.dx, I_ideal)
+    #     print(f'fwhm_airy = {fwhm_airy:.4f} um,  {(fwhm_airy / self.GP.lam):.2f} $\lambda$')
+
+    #     plt.plot(data_far['x'], I_far_normalized, label='measured')
+    #     plt.plot(ideal_far['x'], I_ideal, label='diffraction limited')
+    #     #plt.xlim([-2, 2])
+    #     plt.legend()
+    #     plt.title(f'FWHM = {(fwhm / self.GP.lam):.4f} $\lambda$, {(fwhm*1000):.2f} nm , Strehl ratio = {strehl_ratio:.4f}')
+    #     plt.xlabel('axis position ($\lambda_0$)')
+    #     plt.ylabel('intensity (normalized)')
+    #     plt.show()     
+
+    #     power_in = np.sum(np.abs(data_in['Ey'])**2) 
+    #     power_near = np.sum(np.abs(data_near['Ey'])**2)
+    #     power_far = np.sum(I_far)
+    #     power_focus = np.sum(I_focus)
+    #     eff_trans = power_near / power_in
+    #     eff_far = power_far / power_in
+    #     eff_focus = power_focus / power_in
+
+    #     print(f'transmission efficiency = {(eff_trans*100):.2f}%')
+    #     print(f'far field efficiency = {(eff_far*100):.2f}%')
+    #     print(f'focusing efficiency = {(eff_focus*100):.2f}%')
+    #     print(f'focal area power/total_far_field_power = {power_focus / power_far * 100:.2f}%')
+        
 def resize_1d(field, x, xp):
     out_field = np.interp(x, xp, field)
     out = {}

@@ -28,15 +28,28 @@ class SCMT_2D():
         '''
             the layers will be used when re building the fitted model. If you change any of this default values when you do the fitting.
             you should also change at here.
+            APPROX: 
+                0: accurate Cinv, and exp(1jA)
+                1: approximate Cinv and exp(1jA)
+            Ni, k_row, Euler_steps are super parameters will be used in  approximate Cinv and exp(1jA).
+            Since C is a stripped matrix, C inv is approximated by calculate the inverse of a sub section of the C matrix.
+            Ni: which is be multiple of N. is the size of the sub matrix. smaller Ni will decrease the accuracy.the size of Cinv_stripped is (N**2, Ni). 
+            the size of A is roughly same with Cinv_stripped.
+            k_row: generate C_inv_sub by k rows at same time.
+            Euler steps: approximate U = exp(1jA)U_0 by Euler method. the larger the euler_steps, the higher the accuracy.
         '''
         self.N = N
         self.prop_dis = prop_dis
-        self.total_size = (self.N + 2 * self.GP.Knn + 1) * self.GP.out_res
+        self.total_size = (self.N) * self.GP.out_res
         self.far_field = far_field
         if Ni == None:
             self.Ni = 11 * N
         else:
             self.Ni = Ni
+            if self.Ni%N != 0:
+                raise Exception("Ni should be divied by N.")
+            if self.Ni < 5 * N:
+                raise Exception("Ni should be at least 5 * N.")
         if k_row == None:
             self.k_row = N
         else:
@@ -54,10 +67,8 @@ class SCMT_2D():
             self.Euler_steps = Euler_steps
         if far_field:
             self.model = SCMT_Model(self.prop_dis, self.Euler_steps, self.devs, self.GP, self.COUPLING, self.APPROX, self.Ni, self.k_row, self.N)
-            self.h_paras_name = 'metalayer1.h_paras'
         else:
             self.model = Metalayer(self.Euler_steps, self.devs, self.GP, self.COUPLING, self.APPROX, self.Ni, self.k_row, self.N)
-            self.h_paras_name = 'h_paras'
         self.init_paras(self.model, self.GP.path, init_hs)
         return None
     
@@ -228,7 +239,7 @@ class SCMT_2D():
             # Compute prediction error
             If = self.model(E0)
             if quarter:
-                loss = max_corner(If, self.GP.Knn, self.GP.out_res, target_sigma)
+                loss = max_corner(If, target_sigma)
             else:
                 loss = max_center(If, (center, center), target_sigma)
             #loss = - (If * circle).sum()

@@ -27,7 +27,7 @@ class SCMT_1D():
         '''
         self.N = N
         self.prop_dis = prop_dis
-        self.total_size = (self.N + 2 * self.GP.Knn + 1) * self.GP.res
+        self.total_size = (self.N) * self.GP.res
         self.far_field = far_field
         self.COUPLING = COUPLING
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
