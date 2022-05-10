@@ -255,7 +255,7 @@ class Fullwave_1D():
         #print(psource)
         gaussian_beam = td.GaussianBeam(
             normal='z',
-            center=[0, 0, -z_size/2 + 0.1],
+            center=[0, 0, -z_size/2 + 0.5],
             source_time=td.GaussianPulse(fcen, fwidth),
             angle_theta=theta,
             angle_phi=0,
@@ -267,15 +267,16 @@ class Fullwave_1D():
         # focal plane monitor.
         monitor_far = td.FreqMonitor(center=[0, 0, z_plane + self.GP.wh + prop_dis], size=[x_wgs, y_size, 0], freqs=[fcen])
         monitor_near = td.FreqMonitor(center=[0, 0, z_plane + self.GP.wh + self.GP.lam/2], size=[x_wgs, y_size, 0], freqs=[fcen])
-        monitor_in = td.FreqMonitor(center=[0, 0, -z_size/2 + 0.2], size=[x_wgs, y_size, 0], freqs=[fcen])
-        monitor_far = td.FreqMonitor(center=[0, 0, z_plane + self.GP.wh + prop_dis], size=[self.efficiency_length, y_size, 0], freqs=[fcen])
-        
+        monitor_in = td.FreqMonitor(center=[0, 0, -z_size/2 + 0.7], size=[x_wgs, y_size, 0], freqs=[fcen])
+        monitor_focus = td.FreqMonitor(center=[0, 0, z_plane + self.GP.wh + prop_dis], size=[self.efficiency_length, y_size, 0], freqs=[fcen])
+        monitor_back = td.FreqMonitor(center=[0, 0, -z_size/2 + 0.2], size=[x_wgs, y_size, 0], freqs=[fcen])
+                
         # Initialize simulation
         self.sim = td.Simulation(size=sim_size,
                             resolution=self.res,
                             structures=waveguides,
                             sources=[gaussian_beam],
-                            monitors=[monitor_xz, monitor_in, monitor_near, monitor_far, monitor_focus],
+                            monitors=[monitor_xz, monitor_in, monitor_near, monitor_far, monitor_focus, monitor_back],
                             run_time=run_time,
                             pml_layers=pml_layers)    
         _, ax = plt.subplots(1, 1, figsize=(6, 6))
@@ -322,7 +323,7 @@ class Fullwave_1D():
                 raise Exception("init sim first, then you can download data.")
             self.sim.load_results(path + 'monitor_data.hdf5')
         monitors = self.sim.monitors
-        monitor_xz, monitor_in, monitor_near, monitor_far, monitor_focus = monitors
+        monitor_xz = monitors[0]
         mdata = self.sim.data(monitor_xz)
         Ey_xz_raw = mdata['E'][1,:,0,:,0].T
         out_phy_size = (self.N) * self.GP.period
@@ -391,7 +392,7 @@ class Fullwave_1D():
                 raise Exception("init sim first, then you can download data.")
             self.sim.load_results(path + 'monitor_data.hdf5')
         monitors = self.sim.monitors
-        monitor_xz, monitor_in, monitor_near, monitor_far, monitor_focus = monitors
+        _, monitor_in, monitor_near, monitor_far, monitor_focus, monitor_back = monitors
         data_far = self.sim.data(monitor_far)
         xs_far = data_far['xmesh']
         E_far = np.squeeze(data_far['E'])
@@ -400,7 +401,7 @@ class Fullwave_1D():
         print(f'fwhm = {fwhm:.4f} um, {(fwhm / self.GP.lam):.2f} $\lambda$')
         ideal_meta = Ideal_meta(self.GP)
         ideal_meta.model_init(self.N, self.prop_dis, lens = True)
-        xs_ideal, I_ideal = ideal_meta.forward()
+        xs_ideal, I_ideal = ideal_meta.forward(vis = False)
         I_ideal = np.interp(xs_far, xs_ideal, I_ideal)
         power_ideal = np.sum(I_ideal)
         r = int(round(self.efficiency_length / np.mean(np.diff(xs_far)) / 2))
@@ -423,10 +424,11 @@ class Fullwave_1D():
         plt.ylabel('intensity (normalized)')
         plt.show()     
 
-        power_in = self.sim.flux(monitor_in)[0][0]
-        power_near = self.sim.flux(monitor_near)[0][0]
-        power_far = self.sim.flux(monitor_far)[0][0]
-        power_focus = self.sim.flux(monitor_focus)[0][0]
+        power_back = self.sim.flux(monitor_back, normal = 'z')[0][0]
+        power_in = self.sim.flux(monitor_in, normal = 'z')[0][0] - power_back
+        power_near = self.sim.flux(monitor_near, normal = 'z')[0][0]
+        power_far = self.sim.flux(monitor_far, normal = 'z')[0][0]
+        power_focus = self.sim.flux(monitor_focus, normal = 'z')[0][0]
 
         eff_trans = power_near / power_in
         eff_far = power_far / power_in

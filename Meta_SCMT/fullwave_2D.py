@@ -82,7 +82,7 @@ class Fullwave_2D():
         if theta == 0:
             source = td.PlaneWave(
                 injection_axis='+z',
-                position=-z_size/2 + 2 * self.dl,
+                position=-z_size/2 + spacing/2,
                 source_time = td.GaussianPulse(
                     frequency=fcen,
                     fwidth=fwidth),
@@ -91,7 +91,7 @@ class Fullwave_2D():
         else:
             source = td.GaussianBeam(
                 normal='z',
-                center=[0, 0, -z_size/2 + 2 * self.dl],
+                center=[0, 0, -z_size/2 + spacing/2],
                 source_time=td.GaussianPulse(fcen, fwidth),
                 angle_theta=theta,
                 angle_phi=0,
@@ -112,6 +112,12 @@ class Fullwave_2D():
                         freqs=[fcen],
                         store=['E', 'H'],
                         name='focal_plane')
+        monitor_back = td.FreqMonitor(
+                        center=[0., 0., -z_size/2 + 2*self.dl],
+                        size=[x_size, x_size, 0],
+                        freqs=[fcen],
+                        store=['E', 'H'],
+                        name='reflection')
         monitor_in = td.FreqMonitor(
                         center=[0., 0., -z_size/2 + spacing -2*self.dl],
                         size=[x_size, x_size, 0],
@@ -143,7 +149,7 @@ class Fullwave_2D():
                         store=['E', 'H'],
                         name='cross_section1')
 
-        self.monitors = [monitor_axis, monitor_focal_scan, monitor_in, monitor_near, monitor_xy, monitor_eff, monitor_CS1]
+        self.monitors = [monitor_axis, monitor_focal_scan, monitor_in, monitor_near, monitor_xy, monitor_eff, monitor_CS1, monitor_back]
 
         # Initialize simulation
         self.sim = td.Simulation(size=sim_size,
@@ -213,7 +219,7 @@ class Fullwave_2D():
                 raise Exception("init sim first, then you can download data.")
             self.sim.load_results(path + 'monitor_data.hdf5')
         monitors = self.sim.monitors
-        monitor_axis, monitor_focal_scan, monitor_in, monitor_near, monitor_xy, monitor_eff, monitor_CS1 = monitors
+        monitor_axis, monitor_focal_scan, monitor_in, monitor_near, monitor_xy, monitor_eff, monitor_CS1, monitor_back = monitors
         # intensity along focal plane
         data_focus = self.sim.data(monitor_focal_scan)
         E_focus = np.squeeze(data_focus['E'])
@@ -248,7 +254,7 @@ class Fullwave_2D():
         #diff_lim = airy(xs)
         fwhm_airy = FWHM(xs_far, I_ideal_1D)
         print(f'fwhm_airy = {fwhm_airy:.4f} um,  {(fwhm_airy / self.GP.lam):.2f} $\lambda$')
-
+        plt.figure()
         plt.plot(xs_far / self.GP.lam, I_far_normalized_1D, label='measured')
         plt.plot(xs_far / self.GP.lam, I_ideal_normalized_1D, label='diffraction limited')
         plt.xlim([-2, 2])
@@ -258,7 +264,8 @@ class Fullwave_2D():
         plt.ylabel('intensity (normalized)')
         plt.show()     
 
-        power_in = self.sim.flux(monitor_in)[0][0]
+        power_back = self.sim.flux(monitor_back, normal = 'z')[0][0]
+        power_in = self.sim.flux(monitor_in, normal = 'z')[0][0] - power_back
         power_near = self.sim.flux(monitor_near)[0][0]
         power_far = self.sim.flux(monitor_xy)[0][0]
         power_focus = self.sim.flux(monitor_eff)[0][0]
@@ -278,13 +285,15 @@ class Fullwave_2D():
                 raise Exception("init sim first, then you can download data.")
             self.sim.load_results(path + 'monitor_data.hdf5')
         monitors = self.sim.monitors
-        monitor_axis, monitor_focal_scan, monitor_in, monitor_near, monitor_xy, monitor_eff, monitor_CS1= monitors
+        monitor_axis, monitor_focal_scan, monitor_in, monitor_near, monitor_xy, monitor_eff, monitor_CS1, monitor_back= monitors
         
         if tidy3d_viz:
-            _, ax = plt.subplots(1, 2, figsize=(12, 6))
+            _, ax = plt.subplots(1, 3, figsize=(18, 6))
             im = self.sim.viz_field_2D(monitor_CS1, ax=ax[0], cbar=True, comp='y', val='int')
             im.set_cmap(paper_cmap)
             im = self.sim.viz_field_2D(monitor_eff, ax=ax[1], cbar=True, comp='y', val='int')
+            im.set_cmap(paper_cmap)
+            im = self.sim.viz_field_2D(monitor_back, ax=ax[2], cbar=True, comp='y', val='int')
             im.set_cmap(paper_cmap)
             plt.show()
             
