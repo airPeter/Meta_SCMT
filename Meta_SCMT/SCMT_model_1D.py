@@ -117,8 +117,8 @@ class gen_U0(nn.Module):
             neff: refractive index of each mode. shape [N, modes]
             T: modes amplitude coupled in. shape [N, number of modes]
         '''
-        pad1 = (2 * self.Knn + 1)/self.res//2
-        pad2 = (2 * self.Knn + 1)/self.res - (2 * self.Knn + 1)/self.res//2
+        pad1 = ((2 * self.Knn + 1) * self.res)//2
+        pad2 = (2 * self.Knn + 1) * self.res - pad1
         E0 = torch.nn.functional.pad(E0, pad = (pad1, pad2), mode='constant', value=0.0)
         neff = self.neffnn(hs.view(-1, 1))
         for i in range(6):
@@ -165,7 +165,7 @@ class gen_En(nn.Module):
                 center = int(center)
                 radius = int((self.Knn + 1) * self.res)
                 self.En[center - radius: center + radius] += temp_Ey
-        start = (2 * self.Knn + 1) * self.res//2
+        start = ((2 * self.Knn + 1) * self.res)//2
         end = start + self.N * self.res
         self.En = self.En[start:end]
         return self.En
