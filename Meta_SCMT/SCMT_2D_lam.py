@@ -174,7 +174,7 @@ class SCMT_2D():
         if quarter:
             np.savetxt(out_path + 'waveguide_widths_quarter.csv', out_hs, delimiter=",")
             out_hs = quarter2whole(out_hs)
-        np.savetxt(out_path + 'waveguide_widths.csv', out_hs, delimiter=",")
+        np.savetxt(out_path + 'waveguide_widths.csv', np.round(out_hs,3), delimiter=",")
         print('parameters saved in.', out_path)
         return None
 

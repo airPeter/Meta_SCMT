@@ -195,7 +195,7 @@ class SCMT_2D():
             print("final lr:", my_lr_scheduler.get_last_lr())
         out_hs = self.model.metalayer1.hs.cpu().detach().numpy()
         out_hs = out_hs.reshape(self.N, self.N)
-        np.savetxt(out_path + 'waveguide_widths.csv', out_hs, delimiter=",")
+        np.savetxt(out_path + 'waveguide_widths.csv', np.round(out_hs, 3), delimiter=",")
         print('parameters saved in.', out_path)
         return None
             
