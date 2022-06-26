@@ -269,6 +269,7 @@ class SCMT_2D():
         print("final lr:", my_lr_scheduler.get_last_lr())
         out_hs = self.model.metalayer1.hs.cpu().detach().numpy()
         out_hs = out_hs.reshape(self.N, self.N)
+        #out_hs = out_hs//self.GP.dh * self.GP.dh
         if quarter:
             np.savetxt(out_path + 'waveguide_widths_quarter.csv', out_hs, delimiter=",")
             out_hs = quarter2whole(out_hs)

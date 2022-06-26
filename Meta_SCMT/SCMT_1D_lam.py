@@ -127,6 +127,7 @@ class SCMT_1D():
         print("final lr:", my_lr_scheduler.get_last_lr())
         out_pos = (np.arange(self.N) - (self.N - 1)/2) * self.GP.period
         out_hs = self.model.metalayer1.hs.cpu().detach().numpy()
+        #out_hs = out_hs//self.GP.dh * self.GP.dh
         out_data = np.c_[out_pos.reshape(-1,1), np.round(out_hs.reshape(-1, 1),3)]
         np.savetxt(out_path + 'waveguide_widths.csv', out_data, delimiter=",")
         print('parameters saved in.', out_path)

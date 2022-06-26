@@ -43,6 +43,7 @@ class Metalayer(torch.nn.Module):
         size of E0: (N + 2 * (Knnc + 1)) * period_resolution
         '''
         self.hs = self.sig(self.h_paras) * (self.h_max - self.h_min) + self.h_min
+        #self.hs = torch.div(self.hs, self.GP.dh, rounding_mode = 'floor') * self.GP.dh
         self.neffs = self.neffnn(self.hs.view(-1, 1))
         with torch.set_grad_enabled(False):
             Eys, U0 = self.genu0(self.hs, E0)

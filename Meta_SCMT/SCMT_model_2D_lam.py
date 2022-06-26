@@ -37,6 +37,7 @@ class Metalayer(torch.nn.Module):
         size of E0: (N + 2 * (Knnc + 1)) * period_resolution
         '''
         self.hs = self.sig(self.h_paras.to(self.devs[0])) * (self.h_max - self.h_min) + self.h_min
+        #self.hs = torch.div(self.hs, self.GP.dh, rounding_mode = 'floor') * self.GP.dh
         Ens = []
         for metasub in self.meta_subs:
             Ens.append(metasub(E0, self.hs))

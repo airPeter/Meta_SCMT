@@ -123,7 +123,7 @@ class PBA():
         field = obj.Solve_FieldOnGrid(2,z_offset = wavelength)
         return obj, pillar_eps.reshape(Ny, Nx), field
 
-    def gen_lib(self, vis = True, backend = 'tidy3d', step_size = 0.001):
+    def gen_lib(self, vis = True, backend = 'grcwa', step_size = 0.001):
         widths = np.arange(self.GP.h_min, self.GP.h_max + step_size, step_size)
         phases = []
         if backend == 'tidy3d':

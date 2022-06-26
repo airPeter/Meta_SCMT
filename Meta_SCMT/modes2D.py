@@ -21,9 +21,6 @@ class Gen_modes2D():
         self.base_dir = None
         if self.GP.modes > 2:
             raise Exception("gen modes 2D only support modes <= 2.")
-        warnings.warn("Unlike gen modes 1D which is done locally. gen modes 2D is tricky. because we have to comunicate with tidy3d. Error can happen.\
-            To debug, you have to get yourself familiar with tidy3d (the ideal of upload sim to cloud and download results after the sim is done.\
-            Or, you can try to restart your jupyter notebook and running everythin from begining. The drawback is gen_modes() is usually slow and restart won't promise good results.")
     def count_modes(self,):
         if self.modes_lib == None:
             raise Exception("gen modes first!")
@@ -111,6 +108,9 @@ class Gen_modes2D():
         # tidy3D import
         import tidy3d as td
         from tidy3d import web
+        warnings.warn("Unlike gen modes 1D which is done locally. gen modes 2D is tricky. because we have to comunicate with tidy3d. Error can happen.\
+            To debug, you have to get yourself familiar with tidy3d (the ideal of upload sim to cloud and download results after the sim is done.\
+            Or, you can try to restart your jupyter notebook and running everythin from begining. The drawback is gen_modes() is usually slow and restart won't promise good results.")
         load_path = os.path.join(self.GP.path, "modes_lib.npy")
         if load:
             if not os.path.exists(load_path):

@@ -221,12 +221,12 @@ class Fullwave_2D():
         monitors = self.sim.monitors
         monitor_axis, monitor_focal_scan, monitor_in, monitor_near, monitor_xy, monitor_eff, monitor_CS1, monitor_back = monitors
         # intensity along focal plane
-        data_focus = self.sim.data(monitor_focal_scan)
-        E_focus = np.squeeze(data_focus['E'])
-        I_focus = np.sum(np.square(np.abs(E_focus)), axis=0)
-        xs = data_focus['xmesh']
-        fwhm = FWHM(xs, I_focus)
-        print(f'fwhm = {fwhm:.4f} um, {(fwhm / self.GP.lam):.2f} $\lambda$')
+        # data_focus = self.sim.data(monitor_focal_scan)
+        # E_focus = np.squeeze(data_focus['E'])
+        # I_focus = np.sum(np.square(np.abs(E_focus)), axis=0)
+        # xs = data_focus['xmesh']
+        # fwhm = FWHM(xs, I_focus)
+        # print(f'fwhm = {fwhm:.4f} um, {(fwhm / self.GP.lam):.2f} $\lambda$')
         #theo_fwhm = 1.025 * self.GP.lam * self.prop_dis / self.x_size
         
         data_far = self.sim.data(monitor_xy)
@@ -251,9 +251,11 @@ class Fullwave_2D():
         I_far_normalized_1D = I_far_normalized[I_far_normalized.shape[0]//2]
         I_far_normalized_1D = I_far_normalized_1D/I_ideal_1D.max()
         
-        #diff_lim = airy(xs)
         fwhm_airy = FWHM(xs_far, I_ideal_1D)
-        print(f'fwhm_airy = {fwhm_airy:.4f} um,  {(fwhm_airy / self.GP.lam):.2f} $\lambda$')
+        print(f'fwhm_airy = {fwhm_airy:.4f} um,  {(fwhm_airy / self.GP.lam):.2f} $\lambda$')  
+        
+        fwhm = FWHM(xs_far, I_far_normalized_1D)
+        print(f'fwhm = {fwhm:.4f} um,  {(fwhm / self.GP.lam):.2f} $\lambda$')     
         plt.figure()
         plt.plot(xs_far / self.GP.lam, I_far_normalized_1D, label='measured')
         plt.plot(xs_far / self.GP.lam, I_ideal_normalized_1D, label='diffraction limited')
