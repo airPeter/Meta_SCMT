@@ -3,7 +3,7 @@ import torch
 from torch.utils.data import DataLoader,Dataset
 import cv2
 import matplotlib.pyplot as plt
-
+from typing import List
 
 def toint(x):
     if type(x) == np.ndarray:
@@ -70,6 +70,49 @@ def lens_2D(total_size, dx, focal_lens, k):
     phase = k * (focal_lens - np.sqrt(X**2 + Y**2 + focal_lens**2))
     return x , phase
 
+def deflector_1D(total_size, dx, degree, k):
+    '''
+        degree: the deflecting angle theta
+    '''
+    x = (np.arange(total_size) - (total_size - 1)/2) * dx
+    phase = k * np.sin(degree) * x
+    return x, phase
+
+def deflector_2D(total_size, dx, degree: List, k):
+    '''
+        degree: the deflecting angle [theta, phi]
+    '''    
+    x = (np.arange(total_size) - (total_size - 1)/2) * dx
+    y = x.copy()
+    X, Y = np.meshgrid(x, y)
+    theta, phi = degree
+    phase = k * np.sin(theta) * (np.cos(phi) * X + np.sin(phi) * Y)
+    return x , phase
+
+def deflection_efficiency_1D(N, dx, degree, lam, E, delta_degree = 1):
+    '''
+        requrie degree unit to be [deg]
+    '''
+    axis_x = np.degrees(np.arcsin(np.arange(N) / (dx * N) / (1 / lam)))
+    first_nan_idx = np.argmin(axis_x)
+    print(f"First nan start ad index: {first_nan_idx}")
+    axis_x_valid = axis_x[:first_nan_idx]
+    idx_min = np.argmin(np.abs(axis_x_valid - (degree - delta_degree)))
+    idx_max = np.argmin(np.abs(axis_x_valid - (degree + delta_degree)))
+    Efft = np.fft.fft(E)
+    abs_Efft = np.abs(Efft)
+    plt.figure()
+    plt.plot(axis_x, abs_Efft)
+    plt.axvline(x = axis_x[idx_min], color = 'k', alpha = 0.5, label = 'axvline - full height')
+    plt.axvline(x = axis_x[idx_max], color = 'k', alpha = 0.5, label = 'axvline - full height')
+    plt.xlabel('degree [deg]')
+    plt.ylabel('Fourier transform intensity')
+    
+    abs_Efft_valid = abs_Efft[:first_nan_idx]
+    deflection_eff = np.sum(abs_Efft[idx_min:idx_max])/np.sum(abs_Efft_valid)
+    print(f"Deflaction efficiency: {deflection_eff:.2f}")
+    return None
+    
 def fourier_conv1D(signal: torch.Tensor, f_kernel: torch.Tensor) -> torch.Tensor:
     '''
         args:

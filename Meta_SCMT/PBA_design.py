@@ -6,7 +6,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from tqdm import tqdm
-from .utils import lens_2D, lens_1D, Model, train
+from .utils import lens_2D, lens_1D, Model, train, deflector_1D, deflector_2D
 import torch
 import warnings
 
@@ -242,6 +242,45 @@ class PBA():
                 plt.show()
         return widths_map
 
+    def design_deflector(self, N, degree, load = False, vis = True):
+        if load:
+            self.width_phase_map = np.load(self.GP.path + "rcwa_width_phase_map.npy")
+        else:
+            if self.width_phase_map is None:
+                self.gen_lib()
+        if self.dim == 1:
+            x_lens, lens = deflector_1D(N, self.GP.period, degree, self.GP.k)
+        elif self.dim == 2:
+                x_lens, lens = deflector_2D(N, self.GP.period, degree, self.GP.k)
+        lens_phase = lens%(2 * np.pi) - np.pi
+        widths_map = gen_width_from_phase(self.width_phase_map, lens_phase)
+        widths_map = np.around(widths_map, 3)
+        
+        if vis:
+            if self.dim == 2:
+                fig, axs = plt.subplots(1, 2, figsize = (12, 6))
+                plot1 = axs[0].imshow(lens, cmap = 'magma', extent = (x_lens.min(), x_lens.max(),x_lens.min(), x_lens.max()))
+                plt.colorbar(plot1, ax = axs[0])
+                plot2 = axs[1].imshow(widths_map, cmap = 'magma', extent = (x_lens.min(), x_lens.max(),x_lens.min(), x_lens.max()))
+                plt.colorbar(plot2, ax = axs[1])
+                axs[0].set_title("Lens phase")
+                axs[0].set_xlabel("Position [um]")
+                axs[0].set_ylabel("Position [um]")
+                axs[1].set_title("Lens widths")
+                axs[1].set_xlabel("Position [um]")
+                axs[1].set_ylabel("Position [um]")
+                plt.show()
+            elif self.dim == 1:
+                fig, axs = plt.subplots(2, 1, figsize = (12, 12))
+                axs[0].plot(x_lens, lens)
+                axs[1].plot(x_lens, widths_map)
+                axs[0].set_title("Lens phase")
+                axs[0].set_xlabel("Position [um]")
+                axs[1].set_title("Lens widths")
+                axs[1].set_xlabel("Position [um]")
+                plt.show()
+        return lens_phase, widths_map
+    
     def width_to_phase(self, widths, dx, load = False, vis = True):
         '''
         input:
