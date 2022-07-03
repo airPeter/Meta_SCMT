@@ -93,6 +93,7 @@ def deflection_efficiency_1D(N, dx, degree, lam, E, delta_degree = 1):
     '''
         requrie degree unit to be [deg]
     '''
+    print("make sure the unit of delta_degree is deg.")
     axis_x = np.degrees(np.arcsin(np.arange(N) / (dx * N) / (1 / lam)))
     first_nan_idx = np.argmin(axis_x)
     print(f"First nan start ad index: {first_nan_idx}")
@@ -107,7 +108,7 @@ def deflection_efficiency_1D(N, dx, degree, lam, E, delta_degree = 1):
     plt.axvline(x = axis_x[idx_max], color = 'k', alpha = 0.5, label = 'axvline - full height')
     plt.xlabel('degree [deg]')
     plt.ylabel('Fourier transform intensity')
-    
+    plt.show()
     abs_Efft_valid = abs_Efft[:first_nan_idx]
     deflection_eff = np.sum(abs_Efft[idx_min:idx_max])/np.sum(abs_Efft_valid)
     print(f"Deflaction efficiency: {deflection_eff:.2f}")

@@ -250,9 +250,9 @@ class SCMT_Model(nn.Module):
     def forward(self, E0):
         En = self.metalayer1(E0)
         Ef = self.freelayer1(En)
-        If = torch.abs(Ef)**2
+        #If = torch.abs(Ef)**2
         #If = If/If.max()
-        return If
+        return Ef
     def reset(self, path):
         self.metalayer1.reset(path)
            

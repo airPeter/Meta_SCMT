@@ -126,7 +126,7 @@ class SCMT_Model(nn.Module):
         # If = torch.abs(Efs[0])**2
         # for tmp_E in Efs[1:]:
         #     If = If + torch.abs(tmp_E)**2
-        If = [torch.abs(E)**2 for E in Efs]
-        return If
+        #If = [torch.abs(E)**2 for E in Efs]
+        return Efs
     def reset(self):
         self.metalayer1.reset()
