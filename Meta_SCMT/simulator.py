@@ -16,28 +16,28 @@ import numpy as np
 import os
 import warnings
 import time
-from .modes1D import Gen_modes1D
-from .fitting_neffs import Fitting_neffs
-from .fitting_C_matrix_1D import Fitting_C_matrix_1D
-from .fitting_E_field_1D import Fitting_E_field_1D
-from .fitting_K_matrix_1D import Fitting_K_matrix_1D
-from .SCMT_1D import SCMT_1D
+from .SCMT_utils.modes1D import Gen_modes1D
+from .SCMT_utils.fitting_neffs import Fitting_neffs
+from .SCMT_utils.fitting_C_matrix_1D import Fitting_C_matrix_1D
+from .SCMT_utils.fitting_E_field_1D import Fitting_E_field_1D
+from .SCMT_utils.fitting_K_matrix_1D import Fitting_K_matrix_1D
+from .SCMT_utils.SCMT_1D import SCMT_1D
 from .fullwave_1D import Fullwave_1D
-from .modes2D import Gen_modes2D
-from .fitting_C_matrix_2D import Fitting_C_matrix_2D
-from .fitting_E_field_2D import Fitting_E_field_2D
-from .fitting_K_matrix_2D import Fitting_K_matrix_2D
-from .SCMT_2D import SCMT_2D
+from .SCMT_utils.modes2D import Gen_modes2D
+from .SCMT_utils.fitting_C_matrix_2D import Fitting_C_matrix_2D
+from .SCMT_utils.fitting_E_field_2D import Fitting_E_field_2D
+from .SCMT_utils.fitting_K_matrix_2D import Fitting_K_matrix_2D
+from .SCMT_utils.SCMT_2D import SCMT_2D
 from .fullwave_2D import Fullwave_2D
-from .PBA_design import PBA
-from .PBA_1D import PBA_1D
-from .PBA_2D import PBA_2D
+from .PBA_utils.PBA_design import PBA
+from .PBA_utils.PBA_1D import PBA_1D
+from .PBA_utils.PBA_2D import PBA_2D
 from .ideal_meta import Ideal_meta
 from .ideal_meta_1D import Ideal_meta_1D
 
 
 class GP():
-    def __init__(self, dim, modes, period, res, downsample_ratio, wh, lam, n_sub, n_wg, h_min, h_max, dh, path='sim_cache/'):
+    def __init__(self, dim: int, modes: int, period: float, res: int, downsample_ratio: float, wh: float, lam: float, n_sub: float, n_wg: float, h_min: float, h_max: float, dh: float, path: str = 'sim_cache/'):
         self.dim = dim  # dim = 1 or 2.
         # number of modes with in a single waveguide. modes <= 2 is usually good enough.
         self.modes = modes

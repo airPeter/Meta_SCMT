@@ -2,7 +2,7 @@
     given input field, output the far field of an ideal metasurface.
     eg: we can add an ideal lens phase mask and then do free space propagation.
 '''
-from .SCMT_model_2D import Ideal_model
+from .SCMT_utils.SCMT_model_2D import Ideal_model
 import numpy as np
 import torch
 from .utils import lens_2D
