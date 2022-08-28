@@ -104,26 +104,37 @@ def deflection_efficiency_1D(N: int, dx: float, degree: float, lam: float, E, de
         requrie degree unit to be [deg]
     '''
     print("make sure the unit of delta_degree is deg.")
-    axis_x = np.degrees(np.arcsin(np.arange(N) / (dx * N) / (1 / lam)))
-    first_nan_idx = np.argmin(axis_x)
-    print(f"First nan start ad index: {first_nan_idx}")
-    axis_x_valid = axis_x[:first_nan_idx]
+    axis_x = np.degrees(np.arcsin(np.arange(-N//2, N - N//2) / (dx * N) / (1 / lam)))
+    first_nan_idx = 0
+    last_nan_idx = N - 1
+    while np.isnan(axis_x[first_nan_idx]):
+        first_nan_idx += 1
+    while np.isnan(axis_x[last_nan_idx]):
+        last_nan_idx -= 1
+    if last_nan_idx < N - 1:
+        last_nan_idx += 1
+    print(f"The nan at front end at ad index: {first_nan_idx}")
+    print(f"the nan at tail start ad index: {last_nan_idx}")
+    
+    axis_x_valid = axis_x[first_nan_idx: last_nan_idx]
     idx_min = np.argmin(np.abs(axis_x_valid - (degree - delta_degree)))
     idx_max = np.argmin(np.abs(axis_x_valid - (degree + delta_degree)))
+    print(f"window index: {idx_min, idx_max}")
     Efft = np.fft.fft(E)
-    abs_Efft = np.abs(Efft)
+    Efft = np.fft.fftshift(Efft)
+    sqr_Efft = np.abs(Efft)**2
+    sqr_Efft_valid = sqr_Efft[first_nan_idx:last_nan_idx]
     plt.figure()
-    plt.plot(axis_x, abs_Efft)
-    plt.axvline(x=axis_x[idx_min], color='k', alpha=0.5,
+    plt.plot(axis_x_valid, sqr_Efft_valid)
+    plt.axvline(x=axis_x_valid[idx_min], color='k', alpha=0.5,
                 label='axvline - full height')
-    plt.axvline(x=axis_x[idx_max], color='k', alpha=0.5,
+    plt.axvline(x=axis_x_valid[idx_max], color='k', alpha=0.5,
                 label='axvline - full height')
     plt.xlabel('degree [deg]')
     plt.ylabel('Fourier transform intensity')
     plt.show()
-    abs_Efft_valid = abs_Efft[:first_nan_idx]
-    deflection_eff = np.sum(abs_Efft[idx_min:idx_max])/np.sum(abs_Efft_valid)
-    print(f"Deflaction efficiency: {deflection_eff:.2f}")
+    deflection_eff = np.sum(sqr_Efft_valid[idx_min:idx_max])/np.sum(sqr_Efft_valid)
+    print(f"Deflection efficiency: {deflection_eff:.2f}")
     return None
 
 
