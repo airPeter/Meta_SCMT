@@ -9,7 +9,7 @@ from torch.utils.tensorboard import SummaryWriter
 from ..utils import gen_decay_rate
 from tqdm import tqdm
 import warnings
-
+from typing import List
 class PBA_1D():
     def __init__(self, GP):
         self.GP = GP
@@ -17,10 +17,11 @@ class PBA_1D():
         self.N = None
         self.prop_dis = None
         
-    def init_model(self, N, prop_dis, init_hs = None, far_field = False):
+    def init_model(self, N, prop_dis: List[float], init_hs = None, far_field = False):
         '''
             the layers will be used when re building the fitted model. If you change any of this default values when you do the fitting.
             you should also change at here.
+            len(prop_dis) = number of layers.
         '''
         self.N = N
         self.prop_dis = prop_dis

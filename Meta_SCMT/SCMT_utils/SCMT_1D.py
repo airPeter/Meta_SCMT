@@ -229,7 +229,7 @@ class SCMT_1D():
             If = torch.abs(Ef)**2
             if deflecting_angle is not None:
                 Ef_FFT = torch.fft.fft(Ef)
-                FFT_I = torch.abs(Ef_FFT)
+                FFT_I = torch.abs(Ef_FFT)**2
                 loss = loss_max_range(FFT_I, idx_min, idx_max)
             else:
                 loss = loss_max_center(If, center, target_sigma)
@@ -255,7 +255,7 @@ class SCMT_1D():
                                   plot_If(If),
                                   global_step=step)
                 if deflecting_angle is not None:
-                    writer.add_figure('abs(FFT of Ef)',
+                    writer.add_figure('abs(FFT of Ef)^2',
                                       plot_FFT_I(
                                           axis_angle, idx_min, idx_max, FFT_I),
                                       global_step=step)
@@ -365,7 +365,7 @@ def plot_FFT_I(axis_x, idx_min, idx_max, FFT_I):
     plt.axvline(x=axis_x[idx_max], color='k', alpha=0.5,
                 label='axvline - full height')
     plt.xlabel('degree [deg]')
-    plt.ylabel('Fourier transform intensity')
+    plt.ylabel('Fourier transform intensity (amp^2)')
     return fig
 
 
