@@ -9,12 +9,12 @@ from .ideal_meta_1D import Ideal_meta
 from typing import Optional, Dict, Tuple, Union, List
 
 
-class Fullwave_1D():
+class Fullwave_1D_2layer():
     def __init__(self, GP) -> None:
         self.GP = GP
         self.sim = None
 
-    def init_sim(self, prop_dis: float, N: int, hs: np.ndarray, res: Optional[int] = None, theta: float = 0, empty: bool = False, backend: str = 'meep', vis_path: Optional[str] = None) -> None:
+    def init_sim(self, prop_dis: Union[float, List[float]], N: int, hs: Union[np.ndarray, List[np.ndarray]], res: Optional[int] = None, theta: float = 0, empty: bool = False, backend: str = 'meep', vis_path: Optional[str] = None) -> None:
         self.backend = backend
         self.vis_path = vis_path
         if backend == 'meep':
@@ -197,17 +197,10 @@ class Fullwave_1D():
             plt.savefig(self.vis_path + "near_and_far_field.png")
         return ez_data, data_in, data_near, data_far
 
-    def tidy3d_init_sim(self, prop_dis: float, N: int, hs: np.ndarray, res: Optional[int] = None, theta: float = 0, empty: bool = False) -> None:
+    def tidy3d_init_sim(self, prop_dis: Union[float, List[float]], N: int, hs:  Union[np.ndarray, List[np.ndarray]], res: Optional[int] = None, theta: float = 0, empty: bool = False) -> None:
         # tidy3D import
         import tidy3d as td
-        warnings.warn(
-            "Fullwave is expensive and slow. Only do fullwave on small devices. And low resolution can be inaccurate.")
-        if hs.max() > self.GP.h_max:
-            warnings.warn(
-                "initial widths larger than h_max, bad initial widths for waveguides.")
-        if hs.min() < self.GP.h_min:
-            warnings.warn(
-                "initial widths smaller than h_min, bad initial widths for waveguides.")
+
         if res == None:
             self.res = int(round(1 / self.GP.dh))
         else:
@@ -217,12 +210,12 @@ class Fullwave_1D():
         self.N = N
         self.prop_dis = prop_dis
         xh = N * self.GP.period
-        NA = np.sin(xh / np.sqrt(xh**2 + prop_dis**2))
+        NA = np.sin(xh / np.sqrt(xh**2 + self.prop_dis[-1]**2))
         print(f"numerical aperture: {NA:.2f}")
         self.min_focal_spot = self.GP.lam / 2 / NA
         self.efficiency_length = 6 * self.min_focal_spot
         # Simulation domain size (in micron)
-        z_size = self.GP.wh + 2 + prop_dis
+        z_size = 2 * self.GP.wh + 2 + prop_dis[0] + prop_dis[1]
         x_wgs = N * self.GP.period
         #x_aper = N * self.GP.period
         x_aper = 0
@@ -246,8 +239,8 @@ class Fullwave_1D():
         positions = []
         if self.GP.n_sub != 1:
             material2 = td.Medium(epsilon=self.GP.n_sub**2)
-            sub = td.Box(center=[0, 0, -z_size/2],
-                         size=[x_size*2, y_size*2, 2], material=material2)
+            sub = td.Box(center=[0, 0, z_plane + self.GP.wh + prop_dis[0]/2],
+                         size=[x_size*2, y_size*2, prop_dis[0]], material=material2)
             waveguides.append(sub)
         # gold = td.material_library.Au()
         # aper1 = td.Box(center=[-(x_aper + x_wgs)/2 - x_aper, 0, z_plane + self.GP.wh/2], size=[2 * x_aper, y_size*2, self.GP.wh], material=gold)
@@ -256,19 +249,22 @@ class Fullwave_1D():
         # waveguides.append(aper2)
         if not empty:
             for i in range(N):
-                width = hs[i]
+                width = hs[0][i]
                 x = X[i]
                 positions.append(float(x))
                 temp_wg = td.Box(center=[x, 0, z_plane + self.GP.wh/2],
                                  size=[width, y_size*2, self.GP.wh], material=material1)
                 waveguides.append(temp_wg)
-                # temp_wg = td.Box(center=[x - x_wgs, 0, z_plane + self.GP.wh/2], size=[width, y_size*2, self.GP.wh], material=material1)
-                # waveguides.append(temp_wg)
-                # temp_wg = td.Box(center=[x + x_wgs, 0, z_plane + self.GP.wh/2], size=[width, y_size*2, self.GP.wh], material=material1)
-                # waveguides.append(temp_wg)
+                width = hs[1][i]
+                x = X[i]
+                #positions.append(float(x))
+                temp_wg = td.Box(center=[x, 0, z_plane + 3*self.GP.wh/2 + self.prop_dis[0]],
+                                 size=[width, y_size*2, self.GP.wh], material=material1)
+                waveguides.append(temp_wg)
+
 
         positions = np.array(positions)
-        self.hs_with_pos = np.c_[hs.reshape((-1, 1)), positions]
+        self.hs_with_pos = np.c_[hs[0].reshape((-1, 1)), positions]
 
         # psource = td.PlaneWave(
         #     injection_axis='+z',
@@ -292,12 +288,12 @@ class Fullwave_1D():
                                     x_size, 0, z_size], freqs=[fcen])
         # focal plane monitor.
         monitor_far = td.FreqMonitor(
-            center=[0, 0, z_plane + self.GP.wh + prop_dis], size=[x_wgs, y_size, 0], freqs=[fcen])
+            center=[0, 0, z_plane + 2 * self.GP.wh + prop_dis[0] + prop_dis[1]], size=[x_wgs, y_size, 0], freqs=[fcen])
         monitor_near = td.FreqMonitor(center=[
-                                      0, 0, z_plane + self.GP.wh + self.GP.lam/2], size=[x_wgs, y_size, 0], freqs=[fcen])
+                                      0, 0, z_plane + 2 * self.GP.wh + prop_dis[0] + self.GP.lam/2], size=[x_wgs, y_size, 0], freqs=[fcen])
         monitor_in = td.FreqMonitor(
             center=[0, 0, -z_size/2 + 0.7], size=[x_wgs, y_size, 0], freqs=[fcen])
-        monitor_focus = td.FreqMonitor(center=[0, 0, z_plane + self.GP.wh + prop_dis], size=[
+        monitor_focus = td.FreqMonitor(center=[0, 0, z_plane+ 2 * self.GP.wh + prop_dis[0] + prop_dis[1]], size=[
                                        self.efficiency_length, y_size, 0], freqs=[fcen])
         monitor_back = td.FreqMonitor(
             center=[0, 0, -z_size/2 + 0.2], size=[x_wgs, y_size, 0], freqs=[fcen])
@@ -368,8 +364,8 @@ class Fullwave_1D():
         # Ey_xz_raw = Ey_xz_raw[:, c - r: c + r]
         phy_size_x = Ey_xz_raw.shape[1] * step1
         phy_size_y = Ey_xz_raw.shape[0] * step1
-        index_near = int(round((1 + self.GP.wh)/step1))
-        index_far = int(round((1 + self.GP.wh + self.prop_dis)/step1))
+        index_near = int(round((1 + 2 *self.GP.wh + self.prop_dis[0])/step1))
+        index_far = int(round((1 + 2*self.GP.wh + self.prop_dis[0] + self.prop_dis[1])/step1))
         index_in = int(round((0.2)/step1))
         Ey_near = Ey_xz_raw[index_near, :]
         Ey_far = Ey_xz_raw[index_far, :]
@@ -438,7 +434,7 @@ class Fullwave_1D():
         fwhm = FWHM(xs_far, I_far)
         print(f'fwhm = {fwhm:.4f} um, {(fwhm / self.GP.lam):.2f} $\lambda$')
         ideal_meta = Ideal_meta(self.GP)
-        ideal_meta.model_init(self.N, self.prop_dis, lens=True)
+        ideal_meta.model_init(self.N, self.prop_dis[1], lens=True)
         xs_ideal, I_ideal = ideal_meta.forward(vis=False)
         I_ideal = np.interp(xs_far, xs_ideal, I_ideal)
         power_ideal = np.sum(I_ideal)

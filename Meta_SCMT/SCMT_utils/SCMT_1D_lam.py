@@ -102,7 +102,7 @@ class SCMT_1D():
         else:
             radius = self.N * self.GP.period/2
             NA = radius / np.sqrt(radius**2 + self.prop_dis**2)
-            target_sigma = self.GP.lam / (2 * NA) / self.GP.dx
+            target_sigma = min(self.GP.lams) / (2 * NA) / self.GP.dx
             print("the numerical aperture: ", NA,
                   "target spot size (number of points):", target_sigma)
             center = int(self.total_size//2)
@@ -112,7 +112,7 @@ class SCMT_1D():
             Efs = self.model(E0)
             Ifs = [torch.abs(E)**2 for E in Efs]
             Ef_FFTs = [torch.fft.fft(Ef) for Ef in Efs]
-            FFT_Is = [torch.abs(Ef_FFT) for Ef_FFT in Ef_FFTs]
+            FFT_Is = [torch.abs(Ef_FFT)**2 for Ef_FFT in Ef_FFTs]
             if minmax:
                 if deflecting_angle is not None:
                     losses = [loss_max_range(FFT_I, axis_angles[idx][1], axis_angles[idx][2])
@@ -158,7 +158,7 @@ class SCMT_1D():
                                       plot_If(out_If),
                                       global_step=step)
                     if deflecting_angle is not None:
-                        writer.add_figure(f"abs(FFT of Ef), lam: {self.GP.lams[idx]} um",
+                        writer.add_figure(f"abs(FFT of Ef)**2, lam: {self.GP.lams[idx]} um",
                                           plot_FFT_I(
                                               axis_angles[idx][0], axis_angles[idx][1], axis_angles[idx][2], FFT_Is[idx]),
                                           global_step=step)

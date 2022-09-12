@@ -60,7 +60,7 @@ class PBA():
                             pml_layers=pml_layers)
         return sim
 
-    def create_sim(self, width):   
+    def create_sim(self, width, inverse):   
         import grcwa
         #grcwa.set_backend('autograd')  # important!!
         grcwa.set_backend('numpy')
@@ -111,10 +111,16 @@ class PBA():
         ######### setting up RCWA
         obj = grcwa.obj(nG,L1,L2,freqcmp,theta,phi,verbose=0)
         # input layer information
-        obj.Add_LayerUniform(thick0,ep0)
-        obj.Add_LayerGrid(thickp,Nx,Ny)
-        obj.Add_LayerGrid(wavelength,Nx,Ny)
-        obj.Add_LayerUniform(thickN,epN)
+        if inverse:
+            obj.Add_LayerUniform(thickN,epN)
+            obj.Add_LayerGrid(thickp,Nx,Ny)
+            obj.Add_LayerGrid(wavelength,Nx,Ny)
+            obj.Add_LayerUniform(thick0,ep0)
+        else: 
+            obj.Add_LayerUniform(thick0,ep0)
+            obj.Add_LayerGrid(thickp,Nx,Ny)
+            obj.Add_LayerGrid(wavelength,Nx,Ny)
+            obj.Add_LayerUniform(thickN,epN)
         obj.Init_Setup()
         obj.MakeExcitationPlanewave(planewave['p_amp'],planewave['p_phase'],planewave['s_amp'],planewave['s_phase'],order = 0)    
         epgrid = np.concatenate((pillar_eps.flatten(), air_eps.flatten()))
@@ -123,7 +129,11 @@ class PBA():
         field = obj.Solve_FieldOnGrid(2,z_offset = wavelength)
         return obj, pillar_eps.reshape(Ny, Nx), field
 
-    def gen_lib(self, vis = True, backend = 'grcwa', step_size = 0.001):
+    def gen_lib(self, vis = True, backend = 'grcwa', step_size = 0.001, inverse = False):
+        '''
+            inverse: if inverse is true, the light is incident from air to waveguide then to substrate, else: the light is from substrate to waveguide then  to air.
+        
+        '''
         widths = np.arange(self.GP.h_min, self.GP.h_max + step_size, step_size)
         phases = []
         if backend == 'tidy3d':
@@ -146,7 +156,7 @@ class PBA():
                 phases.append(get_phase_tidy3d(sim))   
         elif backend == 'grcwa':
             for w in tqdm(widths):
-                _, _, field = self.create_sim(w)
+                _, _, field = self.create_sim(w, inverse)
                 ph = get_phase(field)
                 phases.append(ph)
         phases = np.array(phases)
@@ -160,30 +170,43 @@ class PBA():
             #plt.plot(widths_finer, phases_finer)
             plt.xlabel("Waveguide width [um]")
             plt.ylabel("Phase")
-            plt.savefig(self.GP.path + "PBA_phase_vs_width.png")
+            if inverse:
+                plt.savefig(self.GP.path + "PBA_phase_vs_width_inverse.png")
+            else:
+                plt.savefig(self.GP.path + "PBA_phase_vs_width.png")
             plt.show()
         L = phases.shape[0]
         width_phase_map = np.zeros((2, L))
         width_phase_map[0] = widths
         width_phase_map[1] = phases
-        np.save(self.GP.path + "rcwa_width_phase_map.npy", width_phase_map)
+        if inverse:
+            np.save(self.GP.path + "rcwa_width_phase_map_inverse.npy", width_phase_map)
+        else:
+            np.save(self.GP.path + "rcwa_width_phase_map.npy", width_phase_map)
         print("PBA width phase map saved.")
         self.width_phase_map = width_phase_map
         return None
 
-    def fit(self, layers = 6, nodes = 64, steps = 1000, lr = 0.001, vis = True, load = True):
+    def fit(self, layers = 6, nodes = 64, steps = 1000, lr = 0.001, vis = True, load = True, inverse = False):
         if load:
-            self.width_phase_map = np.load(self.GP.path + "rcwa_width_phase_map.npy")
+            if inverse:
+                self.width_phase_map = np.load(self.GP.path + "rcwa_width_phase_map_inverse.npy")
+            else:
+                self.width_phase_map = np.load(self.GP.path + "rcwa_width_phase_map.npy")
         else:
             if self.width_phase_map is None:
-                self.gen_lib()
+                self.gen_lib(inverse=inverse)
         X, Y = self.width_phase_map[0], self.width_phase_map[1]
         X = X.reshape(-1, 1)
         Y = Y.reshape(-1, 1)
         self.model = Model(1, 1, layers= layers, nodes = nodes)
         batch_size = 512
         Y_pred = train(self.model, X, Y, steps, lr, batch_size)
-        torch.save(self.model.state_dict(), self.GP.path + "fitting_PBA_state_dict")
+        if inverse:
+            torch.save(self.model.state_dict(), self.GP.path + "fitting_PBA_state_dict_inverse")
+        else:
+            torch.save(self.model.state_dict(), self.GP.path + "fitting_PBA_state_dict")
+            
         paras = {'nodes': nodes, 'layers': layers}
         np.save(self.GP.path + "PBA_paras.npy", paras)
         print("model saved.")
@@ -326,7 +349,8 @@ def gen_width_from_phase(width_phase_map, target_phase_profile):
     phases = phases.reshape(1,-1)
     target_shape = target_phase_profile.shape
     target_phase_profile = target_phase_profile.reshape(-1,1)
-    diff = np.abs(target_phase_profile - phases)
+    #diff = np.abs(target_phase_profile - phases)
+    diff = np.abs(np.exp(1j*target_phase_profile) - np.exp(1j * phases))
     indexes = np.argmin(diff, axis = -1)
     widths_map = np.take(widths, indexes)
     widths_map = widths_map.reshape(target_shape)

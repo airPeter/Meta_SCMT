@@ -45,6 +45,13 @@ class Fitting_C_matrix_1D():
                 plt.show()
         return None
     
+    def gen_strength_of_coupling(self, C_map):
+        C_map = C_map.reshape(-1, self.Knn * 2 + 2, self.channels)
+        C_nearest_neighbor = C_map[:, self.Knn - 1]
+        coupling_strength = np.mean(C_nearest_neighbor)
+        print(coupling_strength)
+        return coupling_strength
+    
     def gen_fitting_data(self,load):
         '''
             output:
