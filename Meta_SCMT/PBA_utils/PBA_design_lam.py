@@ -16,13 +16,14 @@ class PBA():
     def __init__(self, GP, dim):
         self.GP = GP
         self.dim = dim  # dim = 1 or 2.
-        self.width_phase_maps = []
+        self.width_phase_maps = None
         self.model = None
 
     # TODO: modify design lens for multiple lam.
     def design_lens(self, N, focal_length, vis=True, quarter=False):
         designed_phases = []
         designed_lenses = []
+        self.width_phase_maps = []
         for idx, lam in enumerate(self.GP.lams):
             self.width_phase_maps.append(
                 np.load(self.GP.paths[idx] + "rcwa_width_phase_map.npy"))
@@ -86,6 +87,7 @@ class PBA():
     def design_deflector(self, N, degree, vis=True):
         designed_phases = []
         designed_lenses = []
+        self.width_phase_maps = []
         for idx, lam in enumerate(self.GP.lams):
             self.width_phase_maps.append(
                 np.load(self.GP.paths[idx] + "rcwa_width_phase_map.npy"))
