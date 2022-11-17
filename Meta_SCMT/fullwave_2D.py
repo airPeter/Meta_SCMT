@@ -171,9 +171,9 @@ class Fullwave_2D():
                                 monitors=self.monitors,
                                 run_time=run_time,
                                 boundary_spec=td.BoundarySpec(
-                                    x=td.Boundary.pml(),
-                                    y=td.Boundary.pml(),
-                                    z=td.Boundary.pml()
+                                    x=td.Boundary.absorber(),
+                                    y=td.Boundary.absorber(),
+                                    z=td.Boundary.pml(num_layers=15)
                                 ))
         _, ax = plt.subplots(1, 2, figsize=(12, 6))
         self.sim.plot(x=0, ax=ax[0])

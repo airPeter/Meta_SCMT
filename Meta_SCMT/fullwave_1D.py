@@ -309,7 +309,8 @@ class Fullwave_1D():
             center=[0, 0, -z_size/2 + 0.2], size=[x_wgs, td.inf, 0], freqs=[fcen], name = 'back_flux')
         grid_x = td.UniformGrid(dl=1/res)
         # in z, use an automatic nonuniform mesh with the wavelength being the "unit length"
-        grid_z = td.UniformGrid(dl=1/res)
+        grid_z = td.AutoGrid(min_steps_per_wvl=int(self.GP.lam * res))
+        #grid_z = td.UniformGrid(dl=1/res)
         grid_spec = td.GridSpec(wavelength=self.GP.lam, grid_x=grid_x, grid_z=grid_z)
         # Initialize simulation
         self.sim = td.Simulation(size=sim_size,
@@ -320,9 +321,9 @@ class Fullwave_1D():
                                         monitor_far0, monitor_far1,  monitor_focus, monitor_back],
                                 run_time=run_time,
                                 boundary_spec=td.BoundarySpec(
-                                    x=td.Boundary.pml(),
-                                    y=td.Boundary.pml(),
-                                    z=td.Boundary.pml()
+                                    x=td.Boundary.absorber(),
+                                    y=td.Boundary.absorber(),
+                                    z=td.Boundary.pml(num_layers=15)
                                 ))
         _, ax = plt.subplots(1, 1, figsize=(6, 6))
         self.sim.plot(y=0, ax=ax)
