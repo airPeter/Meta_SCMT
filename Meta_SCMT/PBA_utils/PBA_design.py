@@ -105,7 +105,7 @@ class PBA():
         else:
             raise Exception("dim invalid.")
         # planewave excitation
-        #p is along x direction.
+        #p is along x direction.#the first dim.
         planewave={'p_amp':1,'s_amp':0,'p_phase':0,'s_phase':0}
         freqcmp = freq*(1+1j/2/Qabs)
         ######### setting up RCWA
@@ -136,6 +136,7 @@ class PBA():
         '''
         widths = np.arange(self.GP.h_min, self.GP.h_max + step_size, step_size)
         phases = []
+        amps = []
         if backend == 'tidy3d':
             from tidy3d import web
             sims = [self.create_sim_tidy3d(width) for width in widths]
@@ -153,13 +154,19 @@ class PBA():
             if len(sims_loaded) != len(widths):
                 warnings.warn("the number of simulated waveguides is:" + str(len(sims_loaded)) + ",  but the waveguides needed to be simulated is:" + str(len(self.H)) + "rerun upload!")
             for i, sim in enumerate(sims_loaded):
-                phases.append(get_phase_tidy3d(sim))   
+                ph, amp = get_phase_and_amp_tidy3d(sim)
+                #phases.append(get_phase_tidy3d(sim))   
+                amps.append(amp)
+                phases.append(ph)
         elif backend == 'grcwa':
             for w in tqdm(widths):
                 _, _, field = self.create_sim(w, inverse)
                 ph = get_phase(field)
+                amp = get_amp(field)
+                amps.append(amp)
                 phases.append(ph)
         phases = np.array(phases)
+        amps = np.array(amps)
         # ccoeffs = np.polynomial.chebyshev.chebfit(widths, phases, deg = 3)
         # fcheb = np.polynomial.Chebyshev(ccoeffs)
         # widths_finer = np.linspace(widths.min(), widths.max(), 100)
@@ -175,10 +182,22 @@ class PBA():
             else:
                 plt.savefig(self.GP.path + "PBA_phase_vs_width.png")
             plt.show()
+            
+            plt.figure()
+            plt.plot(widths, amps)
+            #plt.plot(widths_finer, phases_finer)
+            plt.xlabel("Waveguide width [um]")
+            plt.ylabel("Amp")
+            if inverse:
+                plt.savefig(self.GP.path + "PBA_amp_vs_width_inverse.png")
+            else:
+                plt.savefig(self.GP.path + "PBA_amp_vs_width.png")
+            plt.show()
         L = phases.shape[0]
-        width_phase_map = np.zeros((2, L))
+        width_phase_map = np.zeros((3, L))
         width_phase_map[0] = widths
         width_phase_map[1] = phases
+        width_phase_map[2] = amps
         if inverse:
             np.save(self.GP.path + "rcwa_width_phase_map_inverse.npy", width_phase_map)
         else:
@@ -342,7 +361,46 @@ class PBA():
                 axs[1].set_xlabel("Position [um]")
                 plt.show()
         return phases
-            
+
+    def width_to_amp(self, widths, dx, load = False, vis = True):
+        '''
+        input:
+            widths: can be 1 or 2 dim. 
+        output:
+            phases: same size with widths
+        '''
+        if load:
+            self.width_phase_map = np.load(self.GP.path + "rcwa_width_phase_map.npy")
+        else:
+            if self.width_phase_map is None:
+                self.gen_lib()
+        amps = gen_amp_from_width(self.width_phase_map, widths)
+        if vis:
+            x_lens = (np.arange(widths.shape[0]) - (widths.shape[0] - 1)/2) * dx
+            if len(widths.shape) == 2:
+                fig, axs = plt.subplots(1, 2, figsize = (12, 6))
+                plot1 = axs[0].imshow(amps, cmap = 'magma', extent = (x_lens.min(), x_lens.max(),x_lens.min(), x_lens.max()))
+                plt.colorbar(plot1, ax = axs[0])
+                plot2 = axs[1].imshow(widths, cmap = 'magma', extent = (x_lens.min(), x_lens.max(),x_lens.min(), x_lens.max()))
+                plt.colorbar(plot2, ax = axs[1])
+                axs[0].set_title("Lens amplitude")
+                axs[0].set_xlabel("Position [um]")
+                axs[0].set_ylabel("Position [um]")
+                axs[1].set_title("Lens widths")
+                axs[1].set_xlabel("Position [um]")
+                axs[1].set_ylabel("Position [um]")
+                plt.show()
+            else:
+                fig, axs = plt.subplots(2, 1, figsize = (12, 12))
+                axs[0].plot(x_lens, amps)
+                axs[1].plot(x_lens, widths)
+                axs[0].set_title("Lens amplitude")
+                axs[0].set_xlabel("Position [um]")
+                axs[1].set_title("Lens widths")
+                axs[1].set_xlabel("Position [um]")
+                plt.show()
+        return amps
+      
 def gen_width_from_phase(width_phase_map, target_phase_profile):
     phases = width_phase_map[1]
     widths = width_phase_map[0]
@@ -368,6 +426,17 @@ def gen_phase_from_width(width_phase_map, width_profile):
     phases_map = phases_map.reshape(shape)
     return phases_map
 
+def gen_amp_from_width(width_phase_map, width_profile):
+    amps = width_phase_map[2]
+    widths = width_phase_map[0]
+    widths = widths.reshape(1,-1)
+    shape = width_profile.shape
+    width_profile = width_profile.reshape(-1,1)
+    diff = np.abs(width_profile - widths)
+    indexes = np.argmin(diff, axis = -1)
+    amps_map = np.take(amps, indexes)
+    amps_map = amps_map.reshape(shape)
+    return amps_map
 # def get_phase(field):
 #     Ey = field[0][0]
 #     Ey_zero = Ey.mean()
@@ -381,13 +450,22 @@ def get_phase(field):
     center = shape//2
     return phase[center, center]
 
-def get_phase_tidy3d(sim):
+def get_amp(field):
+    E = field[0][0]
+    amp = np.abs(E)
+    shape = E.shape[0]
+    center = shape//2
+    return amp[center, center] 
+
+def get_phase_and_amp_tidy3d(sim):
     monitors = sim.monitors
     mnt_index = 1
     mdata = sim.data(monitors[mnt_index])
     E = mdata['E'][1,:,:,0,0]
     phase = np.angle(E.T[::-1])
+    amp = np.abs(E.T[::-1])
     size1 = phase.shape[0]
     size2 = phase.shape[1]
     center_phase = phase[size1//2, size2//2]
-    return center_phase
+    center_amp = amp[size1//2, size2//2]
+    return center_phase, center_amp
