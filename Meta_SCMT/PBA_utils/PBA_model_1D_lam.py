@@ -20,7 +20,7 @@ class PBA_model_2_layer(nn.Module):
         PBA_models.append(
             PBA_model(self.prop_dis[0], GP, N, total_size, near_field, inverse=True))
         PBA_models.append(
-            PBA_model(self.prop_dis[0], GP, N, total_size, near_field))
+            PBA_model(self.prop_dis[1], GP, N, total_size, near_field))
         self.PBA_models = nn.ModuleList(PBA_models)
         
     def forward(self, E0s: List[torch.Tensor]):

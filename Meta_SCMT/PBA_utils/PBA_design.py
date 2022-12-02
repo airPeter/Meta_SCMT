@@ -9,6 +9,7 @@ from tqdm import tqdm
 from ..utils import lens_2D, lens_1D, Model, train, deflector_1D, deflector_2D
 import torch
 import warnings
+import os
 
 class PBA():
     def __init__(self, GP, dim):
@@ -16,48 +17,84 @@ class PBA():
         self.dim = dim # dim = 1 or 2.
         self.width_phase_map = None
         self.model = None
-    def create_sim_tidy3d(self, width):
+    def create_sim_tidy3d(self, width, inverse):
         import tidy3d as td
         # Simulation domain size (in micron)
-        spacing = 2 * self.GP.lam
+        spacing = self.GP.lam
         z_size = self.GP.wh + 2 * spacing
         x_size = self.GP.period
         res = int(round(1 / (self.GP.period / 40)))
         if self.dim == 1:
-            y_size = 1/res
-            pml_layers = [None, 0, 'standard']
+            y_size = 0
         elif self.dim == 2:
             y_size = x_size
-            pml_layers = [None, None, 'standard']
         sim_size = [x_size, y_size, z_size]
         # Central frequency and bandwidth of pulsed excitation, in Hz
         fcen = td.constants.C_0 / self.GP.lam
+        self.fcen = fcen
         fwidth = fcen/10
         # Total time to run in seconds
-        run_time = 100/fwidth
+        run_time = 200/fwidth
         # Lossless dielectric
-        material1 = td.Medium(epsilon=self.GP.n_wg**2)
-        material2 = td.Medium(epsilon=self.GP.n_sub**2)
+        material1 = td.Medium(permittivity=self.GP.n_wg**2)
+        material2 = td.Medium(permittivity=self.GP.n_sub**2)
         z_plane = -z_size/2 + spacing
-        wg = td.Box(center=[0, 0, z_plane + self.GP.wh/2], size=[width, width, self.GP.wh], material=material1)
-        sub = td.Box(center=[0, 0, -z_size/2], size=[x_size + 1, y_size + 1, 2 * spacing], material=material2)
+        wg = td.Structure(
+                        geometry = td.Box(center=[0, 0, z_plane + self.GP.wh/2],
+                                size=[width, width, self.GP.wh]),
+                        medium = material1,
+                        name = 'wg')
+        if inverse:
+            sub = td.Structure(
+                            geometry = td.Box(center=[0, 0, z_size/2],
+                                    size=[x_size + 1, y_size + 1, 2 * spacing]),
+                            medium = material2,
+                            name = 'sub')
+        else:
+            sub = td.Structure(
+                            geometry = td.Box(center=[0, 0, -z_size/2],
+                                    size=[x_size + 1, y_size + 1, 2 * spacing]),
+                            medium = material2,
+                            name = 'sub')
+
+        gaussian = td.GaussianPulse(freq0=fcen, fwidth=fwidth, phase=0)
         psource = td.PlaneWave(
-            injection_axis='+z',
-            position=-z_size/2 + 0.5 * spacing,
-            source_time = td.GaussianPulse(
-                frequency=fcen,
-                fwidth=fwidth),
-            polarization='y')
-        time_mnt = td.TimeMonitor(center=[0, 0, 0], size=[0, 0, 0])
-        freq_mnt1 = td.FreqMonitor(center=[0, 0, z_plane + self.GP.wh + self.GP.lam], size=[x_size, y_size, 0], freqs=[fcen])
+            source_time=gaussian,
+            size=(td.inf, td.inf, 0),
+            center=(0,0,-z_size/2 + 0.5 * spacing),
+            direction='+',
+            pol_angle = np.pi/2, #Ey polarization.
+        )
+        #print(psource)
+        freq_mnt1 = td.FieldMonitor(center=[0, 0, z_plane + self.GP.wh + 0.5 * spacing], size=[x_size, y_size, 0], freqs=[fcen], name = 'freq')
+
+        grid_x = td.UniformGrid(dl=1/res)
+        grid_y = td.UniformGrid(dl=1/res)
+        grid_z = td.UniformGrid(dl=1/res)
         # Initialize simulation
-        sim = td.Simulation(size=sim_size,
-                            resolution=res,
-                            structures=[wg, sub],
-                            sources=[psource],
-                            monitors=[time_mnt, freq_mnt1],
-                            run_time=run_time,
-                            pml_layers=pml_layers)
+        if self.dim == 1:
+            sim = td.Simulation(size=sim_size,
+                                grid_spec=td.GridSpec(wavelength=self.GP.lam, grid_x=grid_x, grid_z=grid_z),
+                                structures=[wg, sub],
+                                sources=[psource],
+                                monitors=[freq_mnt1],
+                                run_time=run_time,
+                                boundary_spec=td.BoundarySpec(
+                                    x=td.Boundary.periodic(),
+                                    z=td.Boundary.pml(num_layers=20)
+                                ))
+        elif self.dim == 2:
+            sim = td.Simulation(size=sim_size,
+                                grid_spec=td.GridSpec(wavelength=self.GP.lam, grid_x=grid_x, grid_y=grid_y, grid_z=grid_z),
+                                structures=[wg, sub],
+                                sources=[psource],
+                                monitors=[freq_mnt1],
+                                run_time=run_time,
+                                boundary_spec=td.BoundarySpec(
+                                    x=td.Boundary.periodic(),
+                                    y=td.Boundary.periodic(),
+                                    z=td.Boundary.pml(num_layers=20)
+                                ))
         return sim
 
     def create_sim(self, width, inverse):   
@@ -85,7 +122,7 @@ class PBA():
         Nx = 500
         Ny = 500
         # now consider 3 layers: vacuum + patterned + vacuum
-        ep0 = self.GP.n_sub**2# dielectric for layer 1 (uniform)
+        ep_sub = self.GP.n_sub**2# dielectric for layer 1 (uniform)
         epH = self.GP.n_wg**2
         epL = 1
         epN = 1.  # dielectric for layer N (uniform)
@@ -95,6 +132,7 @@ class PBA():
         thickN = 1.
         pillar_eps = np.ones((Nx, Ny)) * epL
         air_eps = np.ones((Nx, Ny))
+        sub_eps = np.ones((Nx, Ny)) * ep_sub
         delta_x = Period / Nx
         width_res = int(round(width / delta_x))
         start = int(round((Nx - width_res)/2))
@@ -115,18 +153,19 @@ class PBA():
             obj.Add_LayerUniform(thickN,epN)
             obj.Add_LayerGrid(thickp,Nx,Ny)
             obj.Add_LayerGrid(wavelength,Nx,Ny)
-            obj.Add_LayerUniform(thick0,ep0)
+            obj.Add_LayerUniform(thick0,ep_sub)
+            epgrid = np.concatenate((pillar_eps.flatten(), sub_eps.flatten()))
         else: 
-            obj.Add_LayerUniform(thick0,ep0)
+            obj.Add_LayerUniform(thick0,ep_sub)
             obj.Add_LayerGrid(thickp,Nx,Ny)
             obj.Add_LayerGrid(wavelength,Nx,Ny)
             obj.Add_LayerUniform(thickN,epN)
+            epgrid = np.concatenate((pillar_eps.flatten(), air_eps.flatten()))
         obj.Init_Setup()
         obj.MakeExcitationPlanewave(planewave['p_amp'],planewave['p_phase'],planewave['s_amp'],planewave['s_phase'],order = 0)    
-        epgrid = np.concatenate((pillar_eps.flatten(), air_eps.flatten()))
         obj.GridLayer_geteps(epgrid)
         #R,T= obj.RT_Solve(normalize=1)
-        field = obj.Solve_FieldOnGrid(2,z_offset = wavelength)
+        field = obj.Solve_FieldOnGrid(2,z_offset = wavelength/2)
         return obj, pillar_eps.reshape(Ny, Nx), field
 
     def gen_lib(self, vis = True, backend = 'grcwa', step_size = 0.001, inverse = False):
@@ -139,25 +178,16 @@ class PBA():
         amps = []
         if backend == 'tidy3d':
             from tidy3d import web
-            sims = [self.create_sim_tidy3d(width) for width in widths]
-            batch = web.Batch(sims, base_dir=self.GP.path + 'tidy3d_PBA_lib/')
-            batch.save(self.GP.path + 'tidy3d_PBA_batch_scan_width')
-            batch.monitor()
-            #batch = web.Batch.load_from_file(self.GP.path + 'tidy3d_PBA_batch_scan_width')
-            sims_loaded = batch.load_results()
-            none_sims = []
-            for i, sim in enumerate(sims_loaded):
-                if sim is None:
-                    none_sims.append(i)
-            if len(none_sims) > 0:
-                raise Exception("for these sims", none_sims, "tidy3d load went wrong. manually download the results from website to", self.base_dir, "and run gen again.")
-            if len(sims_loaded) != len(widths):
-                warnings.warn("the number of simulated waveguides is:" + str(len(sims_loaded)) + ",  but the waveguides needed to be simulated is:" + str(len(self.H)) + "rerun upload!")
-            for i, sim in enumerate(sims_loaded):
-                ph, amp = get_phase_and_amp_tidy3d(sim)
-                #phases.append(get_phase_tidy3d(sim))   
+            sims = {f'width:{np.round(width, 2)}': self.create_sim_tidy3d(width, inverse) for width in widths}
+            batch = web.Batch(simulations=sims)
+            path_dir = self.GP.path + 'tidy3d_PBA_lib/'
+            if not os.path.exists(path_dir):
+                os.mkdir(path_dir)
+            batch_results = batch.run(path_dir=path_dir)
+            for _, sim_data in batch_results.items():
+                ph, amp = get_phase_and_amp_tidy3d(sim_data)
                 amps.append(amp)
-                phases.append(ph)
+                phases.append(ph)     
         elif backend == 'grcwa':
             for w in tqdm(widths):
                 _, _, field = self.create_sim(w, inverse)
@@ -457,13 +487,11 @@ def get_amp(field):
     center = shape//2
     return amp[center, center] 
 
-def get_phase_and_amp_tidy3d(sim):
-    monitors = sim.monitors
-    mnt_index = 1
-    mdata = sim.data(monitors[mnt_index])
-    E = mdata['E'][1,:,:,0,0]
-    phase = np.angle(E.T[::-1])
-    amp = np.abs(E.T[::-1])
+def get_phase_and_amp_tidy3d(sim_data):
+    E = sim_data['freq'].Ey.values
+    E = E[:,:,0,0]
+    phase = np.angle(E)
+    amp = np.abs(E)
     size1 = phase.shape[0]
     size2 = phase.shape[1]
     center_phase = phase[size1//2, size2//2]

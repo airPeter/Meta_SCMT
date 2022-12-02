@@ -232,20 +232,21 @@ class Fullwave_1D():
         fcen = td.constants.C_0 / self.GP.lam
         fwidth = fcen/10
         # Total time to run in seconds
-        run_time = max(50/fwidth, 5 * N * self.GP.period / td.constants.C_0)
+        run_time = max(100/fwidth, 5 * N * self.GP.period / td.constants.C_0)
         print("total running time:", run_time)
 
         # Lossless dielectric
         material1 = td.Medium(permittivity=self.GP.n_wg**2)
         waveguides = []
         z_plane = -z_size/2 + 1
+        self.z_plane = z_plane
         X = (np.arange(N) - (N - 1)/2) * self.GP.period
         positions = []
         if self.GP.n_sub != 1:
             material2 = td.Medium(permittivity=self.GP.n_sub**2)
             sub = td.Structure(
                 geometry = td.Box(center=[0, 0, -z_size/2],
-                         size=[x_size*2, td.inf, 2]),
+                         size=[td.inf, td.inf, 2]),
                 medium = material2,
                 name = 'substrate')
             waveguides.append(sub)
@@ -270,8 +271,8 @@ class Fullwave_1D():
                 # temp_wg = td.Box(center=[x + x_wgs, 0, z_plane + self.GP.wh/2], size=[width, y_size*2, self.GP.wh], material=material1)
                 # waveguides.append(temp_wg)
 
-        positions = np.array(positions)
-        self.hs_with_pos = np.c_[hs.reshape((-1, 1)), positions]
+            positions = np.array(positions)
+            self.hs_with_pos = np.c_[hs.reshape((-1, 1)), positions]
 
         gaussian = td.GaussianPulse(freq0=fcen, fwidth=fwidth, phase=0)
         # gaussian_beam = td.GaussianBeam(
@@ -294,18 +295,23 @@ class Fullwave_1D():
         monitor_xz = td.FieldMonitor(center=[0, 0, 0], size=[
                                     x_size, 0, z_size], freqs=[fcen], name = 'xz')
         # focal plane monitor.
-        monitor_far0 = td.FieldMonitor(
+        monitor_far = td.FieldMonitor(
             center=[0, 0, z_plane + self.GP.wh + prop_dis], size=[x_wgs, 0, 0], freqs=[fcen], name = 'far')
+        monitor_near = td.FieldMonitor(center=[
+                                      0, 0, z_plane + self.GP.wh + self.GP.lam/2], size=[x_wgs, td.inf, 0], freqs=[fcen], name = 'near')
+        monitor_in = td.FieldMonitor(
+            center=[0, 0, -z_size/2 + 0.7], size=[x_wgs, td.inf, 0], freqs=[fcen], name = 'in')
         
-        monitor_far1 = td.FluxMonitor(
+        monitor_far_flux = td.FluxMonitor(
             center=[0, 0, z_plane + self.GP.wh + prop_dis], size=[x_wgs, td.inf, 0], freqs=[fcen], name = 'far_flux')
-        monitor_near = td.FluxMonitor(center=[
+
+        monitor_near_flux = td.FluxMonitor(center=[
                                       0, 0, z_plane + self.GP.wh + self.GP.lam/2], size=[x_wgs, td.inf, 0], freqs=[fcen], name = 'near_flux')
-        monitor_in = td.FluxMonitor(
+        monitor_in_flux = td.FluxMonitor(
             center=[0, 0, -z_size/2 + 0.7], size=[x_wgs, td.inf, 0], freqs=[fcen], name = 'in_flux')
-        monitor_focus = td.FluxMonitor(center=[0, 0, z_plane + self.GP.wh + prop_dis], size=[
+        monitor_focus_flux = td.FluxMonitor(center=[0, 0, z_plane + self.GP.wh + prop_dis], size=[
                                        self.efficiency_length, td.inf, 0], freqs=[fcen], name = 'focus_flux')
-        monitor_back = td.FluxMonitor(
+        monitor_back_flux = td.FluxMonitor(
             center=[0, 0, -z_size/2 + 0.2], size=[x_wgs, td.inf, 0], freqs=[fcen], name = 'back_flux')
         grid_x = td.UniformGrid(dl=1/res)
         # in z, use an automatic nonuniform mesh with the wavelength being the "unit length"
@@ -317,13 +323,13 @@ class Fullwave_1D():
                                 grid_spec=grid_spec,
                                 structures=waveguides,
                                 sources=[psource],
-                                monitors=[monitor_xz, monitor_in, monitor_near,
-                                        monitor_far0, monitor_far1,  monitor_focus, monitor_back],
+                                monitors=[monitor_xz, monitor_in, monitor_near, monitor_far,
+                                          monitor_far_flux, monitor_in_flux, monitor_near_flux, monitor_focus_flux, monitor_back_flux],
                                 run_time=run_time,
                                 boundary_spec=td.BoundarySpec(
-                                    x=td.Boundary.absorber(),
-                                    y=td.Boundary.absorber(),
-                                    z=td.Boundary.pml(num_layers=15)
+                                    x=td.Boundary.pml(num_layers=20),
+                                    y=td.Boundary.periodic(),
+                                    z=td.Boundary.pml(num_layers=20)
                                 ))
         _, ax = plt.subplots(1, 1, figsize=(6, 6))
         self.sim.plot(y=0, ax=ax)
@@ -376,22 +382,14 @@ class Fullwave_1D():
                 raise Exception("Specify path argument to load sim data.")
             
         Ey_xz_raw = np.squeeze(self.sim_data['xz'].Ey).T
-        out_phy_size = (self.N) * self.GP.period
-        step1 = self.sim_data['xz'].monitor.size[0] / Ey_xz_raw.shape[1]
-        # r = int(round(x_out_size / step1/2))
-        # c = Ey_xz_raw.shape[1]//2
-        # print(r, c)
-        # Ey_xz_raw = Ey_xz_raw[:, c - r: c + r]
-        phy_size_x = Ey_xz_raw.shape[1] * step1
-        phy_size_y = Ey_xz_raw.shape[0] * step1
-        index_near = int(round((1 + self.GP.wh)/step1))
-        index_far = int(round((1 + self.GP.wh + self.prop_dis)/step1))
-        index_in = int(round((0.2)/step1))
-        Ey_near = Ey_xz_raw[index_near, :]
-        Ey_far = Ey_xz_raw[index_far, :]
-        Ey_in = Ey_xz_raw[index_in, :]
+        phy_size_x = self.sim_data['xz'].monitor.size[0]
+        phy_size_y = self.sim_data['xz'].monitor.size[2]
+        Ey_far = np.squeeze(self.sim_data['far'].Ey).values
+        Ey_near = np.squeeze(self.sim_data['near'].Ey).values
+        Ey_in = np.squeeze(self.sim_data['in'].Ey).values
         num_steps2 = (self.N) * self.GP.res
-        xp = np.linspace(-phy_size_x/2, phy_size_x/2, num=Ey_xz_raw.shape[1])
+        out_phy_size = (self.N) * self.GP.period
+        xp = self.sim_data['far'].Ey.coords['x'].values
         x = np.linspace(-out_phy_size/2, out_phy_size/2, num_steps2)
         data_near = resize_1d(Ey_near, x, xp)
         data_far = resize_1d(Ey_far, x, xp)
