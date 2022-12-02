@@ -312,7 +312,7 @@ class PBA():
                 axs[1].set_title("Lens widths")
                 axs[1].set_xlabel("Position [um]")
                 plt.show()
-        return widths_map
+        return lens_phase, widths_map
 
     def design_deflector(self, N, degree, load = False, vis = True):
         if load:

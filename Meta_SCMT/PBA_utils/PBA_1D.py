@@ -30,8 +30,10 @@ class PBA_1D():
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         if type(self.prop_dis) == list:
                 self.model = PBA_model_2_layer(
-                    self.prop_dis, self.GP, self.N, self.total_size, near_field=False)       
+                    self.prop_dis, self.GP, self.N, self.total_size, near_field=False)     
+                self.focal_length = self.prop_dis[-1]
         else:
+            self.focal_length = self.prop_dis
             if far_field:
                 self.model = PBA_model(
                     self.prop_dis, self.GP, self.N, self.total_size, near_field=False)
@@ -40,6 +42,7 @@ class PBA_1D():
                     self.prop_dis, self.GP, self.N, self.total_size, near_field=True)
         self.init_paras(self.model, init_hs)
         self.model = self.model.to(self.device)
+        print(f"focal lengths: {self.focal_length}")  
         return None
     
     def forward(self, theta = 0):
@@ -77,7 +80,7 @@ class PBA_1D():
         self.model.train()
 
         radius = self.N * self.GP.period/2
-        NA =  radius/ np.sqrt(radius**2 + self.prop_dis**2)
+        NA =  radius/ np.sqrt(radius**2 + self.focal_length**2)
         target_sigma = self.GP.lam / (2 * NA) / self.GP.dx
         print("the numerical aperture: ", NA, "target spot size (number of points):", target_sigma)
         
@@ -91,7 +94,7 @@ class PBA_1D():
                 sub_losses = []
                 for _ in range(substeps):
                     rand_theta = np.random.uniform(theta[0], theta[1])
-                    center = int(self.total_size//2 + self.prop_dis * np.tan(rand_theta)/self.GP.dx)
+                    center = int(self.total_size//2 + self.focal_length * np.tan(rand_theta)/self.GP.dx)
                     X = np.arange(self.total_size) * self.GP.dx
                     E0 = np.exp(1j * self.GP.k * np.sin(rand_theta) * X)
                     E0 = torch.tensor(E0, dtype = torch.complex64)
@@ -111,7 +114,7 @@ class PBA_1D():
                         
             else:
                 rand_theta = np.random.uniform(theta[0], theta[1])
-                center = int(self.total_size//2 + self.prop_dis * np.tan(rand_theta)/self.GP.dx)
+                center = int(self.total_size//2 + self.focal_length * np.tan(rand_theta)/self.GP.dx)
                 X = np.arange(self.total_size) * self.GP.dx
                 E0 = np.exp(1j * self.GP.k * np.sin(rand_theta) * X)
                 E0 = torch.tensor(E0, dtype = torch.complex64)
@@ -133,9 +136,17 @@ class PBA_1D():
                 # ...log the running loss
                 writer.add_scalar('training loss',
                                 scalar_value = loss.item(), global_step = step)
-                writer.add_figure('hs',
-                                plot_hs(self.model.hs.cpu().detach().numpy()),
-                                global_step= step)
+                if type(self.prop_dis) == list:
+                    for idx in range(len(self.prop_dis)):
+                        writer.add_figure('hs_layer_' + str(idx),
+                                        plot_hs(
+                                            self.model.PBA_models[idx].hs.cpu().detach().numpy()),
+                                        global_step=step)   
+                else:   
+                    writer.add_figure('hs',
+                                    plot_hs(
+                                        self.model.hs.cpu().detach().numpy()),
+                                    global_step=step)
                 writer.add_figure('If',
                                 plot_If(If, target_If),
                                 global_step= step)       
@@ -147,9 +158,15 @@ class PBA_1D():
         else:
             print("final lr:", my_lr_scheduler.get_last_lr())
         out_pos = (np.arange(self.N) - (self.N - 1)/2) * self.GP.period
-        out_hs = self.model.hs.cpu().detach().numpy()
-        out_data = np.c_[out_pos.reshape(-1,1), out_hs.reshape(-1, 1)]
-        np.savetxt(out_path + 'waveguide_widths.csv', out_data, delimiter=",")
+        if type(self.prop_dis) == list:
+            for idx in range(len(self.prop_dis)):
+                out_hs = self.model.PBA_models[idx].hs.cpu().detach().numpy()
+                out_data = np.c_[out_pos.reshape(-1, 1), out_hs.reshape(-1, 1)]
+                np.savetxt(out_path + f'waveguide_widths_{idx}.csv', out_data, delimiter=",") 
+        else:   
+            out_hs = self.model.hs.cpu().detach().numpy()
+            out_data = np.c_[out_pos.reshape(-1, 1), out_hs.reshape(-1, 1)]
+            np.savetxt(out_path + 'waveguide_widths.csv', out_data, delimiter=",")
         print('parameters saved in.', out_path)
         return None
     
@@ -172,7 +189,7 @@ class PBA_1D():
         E0 = torch.tensor(E0, dtype = torch.complex64)
         E0 = E0.to(self.device)
         radius = self.N * self.GP.period/2
-        NA =  radius/ np.sqrt(radius**2 + self.prop_dis**2)
+        NA =  radius/ np.sqrt(radius**2 + self.focal_length**2)
         target_sigma = self.GP.lam / (2 * NA) / self.GP.dx
         print("the numerical aperture: ", NA, "target spot size (number of points):", target_sigma)
         center = int(self.total_size//2)
@@ -194,9 +211,17 @@ class PBA_1D():
                 # ...log the running loss
                 writer.add_scalar('training loss',
                                 scalar_value = loss.item(), global_step = step)
-                writer.add_figure('hs',
-                                plot_hs(self.model.hs.cpu().detach().numpy()),
-                                global_step= step)
+                if type(self.prop_dis) == list:
+                    for idx in range(len(self.prop_dis)):
+                        writer.add_figure('hs_layer_' + str(idx),
+                                        plot_hs(
+                                            self.model.PBA_models[idx].hs.cpu().detach().numpy()),
+                                        global_step=step)   
+                else:   
+                    writer.add_figure('hs',
+                                    plot_hs(
+                                        self.model.hs.cpu().detach().numpy()),
+                                    global_step=step)
                 writer.add_figure('If',
                                 plot_If(If),
                                 global_step= step)       
@@ -206,9 +231,15 @@ class PBA_1D():
                 # print(f"loss: {loss:>7f}  [{step:>5d}/{train_steps:>5d}]")
         print("final lr:", my_lr_scheduler.get_last_lr())
         out_pos = (np.arange(self.N) - (self.N - 1)/2) * self.GP.period
-        out_hs = self.model.hs.cpu().detach().numpy()
-        out_data = np.c_[out_pos.reshape(-1,1), out_hs.reshape(-1, 1)]
-        np.savetxt(out_path + 'waveguide_widths.csv', out_data, delimiter=",")
+        if type(self.prop_dis) == list:
+            for idx in range(len(self.prop_dis)):
+                out_hs = self.model.PBA_models[idx].hs.cpu().detach().numpy()
+                out_data = np.c_[out_pos.reshape(-1, 1), out_hs.reshape(-1, 1)]
+                np.savetxt(out_path + f'waveguide_widths_{idx}.csv', out_data, delimiter=",") 
+        else:   
+            out_hs = self.model.hs.cpu().detach().numpy()
+            out_data = np.c_[out_pos.reshape(-1, 1), out_hs.reshape(-1, 1)]
+            np.savetxt(out_path + 'waveguide_widths.csv', out_data, delimiter=",")
         print('parameters saved in.', out_path)
         return None
 
