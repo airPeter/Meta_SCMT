@@ -95,7 +95,7 @@ class Metalayer_sub(torch.nn.Module):
         self.neffnn = gen_neff(GP.modes, neff_paras['nodes'], neff_paras['layers']).to(self.devs[self.dev_idx])
         self.genc = gen_C(GP.modes, C_paras['nodes'], C_paras['layers'], N).to(self.devs[self.dev_idx])
         self.genk = gen_K(GP.modes, K_paras['nodes'], K_paras['layers'], N).to(self.devs[self.dev_idx])
-        self.genu0 = gen_U0(GP.modes, neff_paras['nodes'], neff_paras['layers'], E_paras['nodes'], E_paras['layers'], GP.out_res, N, GP.n0, GP.C_EPSILON, GP.period, GP.Knn).to(self.devs[self.dev_idx])
+        self.genu0 = gen_U0(GP.modes, neff_paras['nodes'], neff_paras['layers'], E_paras['nodes'], E_paras['layers'], GP.out_res, N, GP.n_sub, GP.C_EPSILON, GP.period, GP.Knn).to(self.devs[self.dev_idx])
         self.genen = gen_En(GP.modes, GP.out_res, N, GP.n0, GP.C_EPSILON, GP.Knn).to(self.devs[self.dev_idx])
         if GP.Knn != 2:
             raise Exception("Knn = 2 is hardcode in sputil_2D module. So only Knn = 2 is supported.")

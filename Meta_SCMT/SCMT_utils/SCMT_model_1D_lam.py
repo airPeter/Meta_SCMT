@@ -65,7 +65,7 @@ class Metalayer_sub(torch.nn.Module):
         self.neffnn = gen_neff(GP.modes, neff_paras['nodes'], neff_paras['layers'])
         self.genc = gen_C(GP.modes, C_paras['nodes'], C_paras['layers'], N, GP.Knn)
         self.genk = gen_K(GP.modes, K_paras['nodes'], K_paras['layers'], N, GP.Knn)
-        self.genu0 = gen_U0(GP.modes, neff_paras['nodes'], neff_paras['layers'], E_paras['nodes'], E_paras['layers'], GP.res, N, GP.n0, GP.C_EPSILON, GP.dx, GP.Knn)
+        self.genu0 = gen_U0(GP.modes, neff_paras['nodes'], neff_paras['layers'], E_paras['nodes'], E_paras['layers'], GP.res, N, GP.n_sub, GP.C_EPSILON, GP.dx, GP.Knn)
         self.genen = gen_En(GP.modes, GP.res, N, GP.n0, GP.C_EPSILON, GP.dx, GP.Knn)
         self.gen_hs_input = gen_input_hs(N, GP.Knn)
         dis = torch.tensor(gen_dis_CK_input(N, GP.Knn), dtype = torch.float, requires_grad = False)

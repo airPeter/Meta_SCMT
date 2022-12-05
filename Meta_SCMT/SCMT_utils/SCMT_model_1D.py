@@ -4,9 +4,10 @@ import torch.nn as nn
 from ..utils import Model, fourier_conv1D
 from .sputil_1D import gen_coo_sparse, gen_dis_CK_input, gen_input_hs
 from scipy import special
+from typing import List
 
 class Metalayer(torch.nn.Module):
-    def __init__(self, GP, COUPLING, N):
+    def __init__(self, GP, COUPLING, N, inverse = False):
         '''
 
         '''
@@ -32,8 +33,12 @@ class Metalayer(torch.nn.Module):
         self.neffnn = gen_neff(GP.modes, neff_paras['nodes'], neff_paras['layers'])
         self.genc = gen_C(GP.modes, C_paras['nodes'], C_paras['layers'], N, GP.Knn)
         self.genk = gen_K(GP.modes, K_paras['nodes'], K_paras['layers'], N, GP.Knn)
-        self.genu0 = gen_U0(GP.modes, neff_paras['nodes'], neff_paras['layers'], E_paras['nodes'], E_paras['layers'], GP.res, N, GP.n0, GP.C_EPSILON, GP.dx, GP.Knn)
-        self.genen = gen_En(GP.modes, GP.res, N, GP.n0, GP.C_EPSILON, GP.dx, GP.Knn)
+        if inverse:
+            self.genu0 = gen_U0(GP.modes, neff_paras['nodes'], neff_paras['layers'], E_paras['nodes'], E_paras['layers'], GP.res, N, GP.n0, GP.C_EPSILON, GP.dx, GP.Knn)
+            self.genen = gen_En(GP.modes, GP.res, N, GP.n_sub, GP.C_EPSILON, GP.dx, GP.Knn)
+        else:
+            self.genu0 = gen_U0(GP.modes, neff_paras['nodes'], neff_paras['layers'], E_paras['nodes'], E_paras['layers'], GP.res, N, GP.n_sub, GP.C_EPSILON, GP.dx, GP.Knn)
+            self.genen = gen_En(GP.modes, GP.res, N, GP.n0, GP.C_EPSILON, GP.dx, GP.Knn)
         self.sig = torch.nn.Sigmoid()
         self.gen_hs_input = gen_input_hs(N, GP.Knn)
         dis = torch.tensor(gen_dis_CK_input(N, GP.Knn), dtype = torch.float, requires_grad = False)
@@ -240,13 +245,16 @@ class gen_K(nn.Module):
         self.knn.load_state_dict(model_state)
 
 class SCMT_Model(nn.Module):
-    def __init__(self, prop_dis, GP, COUPLING, N):
+    def __init__(self, prop_dis, GP, COUPLING, N, inverse = False):
         super(SCMT_Model, self).__init__()
 
         self.prop = prop_dis
         total_size = (N) * GP.res
-        self.metalayer1 = Metalayer(GP, COUPLING, N)
-        self.freelayer1 = freespace_layer(self.prop, GP.lam, total_size, GP.dx)
+        self.metalayer1 = Metalayer(GP, COUPLING, N, inverse)
+        if inverse:
+            self.freelayer1 = freespace_layer(self.prop, GP.lam/self.GP.n_sub, total_size, GP.dx)
+        else:
+            self.freelayer1 = freespace_layer(self.prop, GP.lam, total_size, GP.dx)
     def forward(self, E0):
         En = self.metalayer1(E0)
         Ef = self.freelayer1(En)
@@ -255,23 +263,32 @@ class SCMT_Model(nn.Module):
         return Ef
     def reset(self, path):
         self.metalayer1.reset(path)
+  
            
-# class freespace_layer(nn.Module):
-#     def __init__(self, k, prop, total_size, dx):
-#         super(freespace_layer, self).__init__()
-#         G = torch.tensor(gen_G(k, prop, total_size, dx), dtype= torch.complex64)
-#         self.register_buffer('G', G)
-#     def forward(self, En):
-#         Ef = self.G @ En
-#         return Ef
-
-# def gen_G(k, prop, total_size, dx):
-#     x = (np.arange(total_size)) * dx
-#     inplane_dis = np.reshape(x, (1,-1)) - np.reshape(x, (-1, 1))
-#     r = np.sqrt(prop**2 + inplane_dis**2)
-#     v = 1
-#     G = -1j * k / 4 * special.hankel1(v, k * r) * prop / r * dx
-#     return G
+class SCMT_Model_2_layer(nn.Module):
+    def __init__(self, prop_dis: List[float], GP, COUPLING, N, near_field=True):
+        super(SCMT_Model_2_layer, self).__init__()
+        '''
+            the pillars are fabed on two side of the substrate. So that the light incident from air to sub then to air.
+        '''
+        SCMT_models = []
+        self.prop_dis = prop_dis
+        assert len(self.prop_dis) == 2, "2 layer model, number of prop_dis should be 2.!"
+        SCMT_models.append(
+            SCMT_Model(self.prop_dis[0], GP, COUPLING, N, inverse = True))
+        SCMT_models.append(
+            SCMT_Model(self.prop_dis[1], GP, COUPLING, N))
+        self.SCMT_models = nn.ModuleList(SCMT_models)
+        
+    def forward(self, E0):
+        Ei = E0
+        for _, SCMT_model in enumerate(self.SCMT_models):
+            Ei = SCMT_model(Ei)
+        return Ei
+    
+    def reset(self):
+        for i in range(len(self.prop_dis)):
+            self.PBA_models[i].reset()
 
 class freespace_layer(nn.Module):
     def __init__(self, prop, lam, total_size, dx):

@@ -20,11 +20,11 @@ class PBA_model_2_layer(nn.Module):
             PBA_model(self.prop_dis[1], GP, N, total_size, near_field))
         self.PBA_models = nn.ModuleList(PBA_models)
         
-    def forward(self, E0s: List[torch.Tensor]):
-        Eis = E0s
+    def forward(self, E0):
+        Ei = E0
         for _, PBA_model in enumerate(self.PBA_models):
-            Eis = PBA_model(Eis)
-        return Eis
+            Ei = PBA_model(Ei)
+        return Ei
     
     def reset(self):
         for i in range(len(self.prop_dis)):
@@ -65,8 +65,8 @@ class PBA_model(nn.Module):
         if self.near_field:
             return E
         Ef = self.freelayer1(E)
-        If = torch.abs(Ef)**2
-        return If
+        #If = torch.abs(Ef)**2
+        return Ef
     def reset(self):
         torch.nn.init.constant_(self.h_paras, val = 0.0)
         self.genphase.reset(self.GP.path, self.inverse)

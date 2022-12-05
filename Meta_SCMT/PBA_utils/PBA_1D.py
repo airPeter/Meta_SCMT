@@ -100,16 +100,30 @@ class PBA_1D():
                     E0 = torch.tensor(E0, dtype = torch.complex64)
                     E0 = E0.to(self.device)
                     # Compute prediction error
-                    If = self.model(E0)
+                    Ef = self.model(E0)
+                    If = torch.abs(Ef)**2
                     loss = loss_max_center(If, center, target_sigma)
                     sub_losses.append(loss.cpu().detach().item())
                     self.model.zero_grad()
                     loss.backward()
-                    with torch.no_grad():
-                        hs_grads.append(self.model.h_paras.grad)
-                idx = np.argmax(np.array(sub_losses))
-                grad = hs_grads[idx]
-                self.model.h_paras.grad.copy_(grad)
+                    if type(self.prop_dis) == list:
+                        with torch.no_grad():
+                            tmp_grads = []
+                            for idx in range(len(self.prop_dis)):
+                                tmp_grads.append(self.model.PBA_models[idx].h_paras.grad)
+                            hs_grads.append(tmp_grads)
+                    else:
+                        with torch.no_grad():
+                            hs_grads.append(self.model.h_paras.grad)
+                max_idx = np.argmax(np.array(sub_losses))
+                if type(self.prop_dis) == list:
+                    for idx in range(len(self.prop_dis)):
+                        grad = hs_grads[max_idx][idx]
+                        if grad is not None:
+                            self.model.PBA_models[idx].h_paras.grad.copy_(grad)
+                else:
+                    grad = hs_grads[max_idx]
+                    self.model.h_paras.grad.copy_(grad)
                 optimizer.step()
                         
             else:
@@ -120,7 +134,8 @@ class PBA_1D():
                 E0 = torch.tensor(E0, dtype = torch.complex64)
                 E0 = E0.to(self.device)
                 # Compute prediction error
-                If = self.model(E0)
+                Ef = self.model(E0)
+                If = torch.abs(Ef)**2
                 loss = loss_max_center(If, center, target_sigma)
                 # Backpropagation
                 optimizer.zero_grad()
@@ -195,7 +210,8 @@ class PBA_1D():
         center = int(self.total_size//2)
         for step in tqdm(range(steps + 1)):
             # Compute prediction error
-            If = self.model(E0)
+            Ef = self.model(E0)
+            If = torch.abs(Ef)**2
             loss = loss_max_center(If, center, target_sigma)
             # Backpropagation
             optimizer.zero_grad()

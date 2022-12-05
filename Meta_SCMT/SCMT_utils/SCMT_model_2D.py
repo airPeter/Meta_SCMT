@@ -46,7 +46,7 @@ class Metalayer(torch.nn.Module):
         self.neffnn = gen_neff(GP.modes, neff_paras['nodes'], neff_paras['layers']).to(self.devs[0])
         self.genc = gen_C(GP.modes, C_paras['nodes'], C_paras['layers'], N).to(self.devs[0])
         self.genk = gen_K(GP.modes, K_paras['nodes'], K_paras['layers'], N).to(self.devs[0])
-        self.genu0 = gen_U0(GP.modes, neff_paras['nodes'], neff_paras['layers'], E_paras['nodes'], E_paras['layers'], GP.out_res, N, GP.n0, GP.C_EPSILON, GP.period, GP.Knn).to(self.devs[0])
+        self.genu0 = gen_U0(GP.modes, neff_paras['nodes'], neff_paras['layers'], E_paras['nodes'], E_paras['layers'], GP.out_res, N, GP.n_sub, GP.C_EPSILON, GP.period, GP.Knn).to(self.devs[0])
         self.genen = gen_En(GP.modes, GP.out_res, N, GP.n0, GP.C_EPSILON, GP.Knn).to(self.devs[0])
         self.sig = torch.nn.Sigmoid()
         if GP.Knn != 2:
