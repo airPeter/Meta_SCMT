@@ -51,7 +51,10 @@ class Metalayer(torch.nn.Module):
         #self.hs = torch.div(self.hs, self.GP.dh, rounding_mode = 'floor') * self.GP.dh
         self.neffs = self.neffnn(self.hs.view(-1, 1))
         with torch.set_grad_enabled(False):
-            Eys, U0 = self.genu0(self.hs, E0)
+            hs_no_grad = self.hs
+            neffs_no_grad = self.neffs
+        
+        Eys, U0 = self.genu0(hs_no_grad, E0)
         if not self.COUPLING:
             P = torch.exp(self.neffs.view(-1,) * self.k * self.wh * 1j)
             Uz = P * U0 #shape [N*modes,]
@@ -68,9 +71,7 @@ class Metalayer(torch.nn.Module):
             A = Eig_M * self.wh * 1j
             P = torch.matrix_exp(A) #waveguide propagator
             Uz = P @ U0
-        with torch.set_grad_enabled(False):
-            hs_no_grad = self.hs
-            neffs_no_grad = self.neffs
+
         En = self.genen(hs_no_grad, Uz, neffs_no_grad, Eys) #near field
         return En
     
@@ -113,7 +114,7 @@ class gen_U0(nn.Module):
         enn_out_size = modes * 2 * (Knn + 1) * res
         self.Ey_size = 2 * (Knn + 1) * res
         self.enn = Model(1, enn_out_size, layers= le, nodes = node_e).requires_grad_(requires_grad=False)
-        self.register_buffer('E0_slice', torch.zeros((N, 1, self.Ey_size), dtype= torch.complex64))
+        #self.register_buffer('E0_slice', torch.zeros((N, 1, self.Ey_size), dtype= torch.complex64))
     def forward(self, hs, E0):
         '''
         input:
@@ -127,15 +128,16 @@ class gen_U0(nn.Module):
         pad2 = (2 * self.Knn + 1) * self.res - pad1
         E0 = torch.nn.functional.pad(E0, pad = (pad1, pad2), mode='constant', value=0.0)
         neff = self.neffnn(hs.view(-1, 1))
+        E0_slice = []
         for i in range(6):
-            self.E0_slice[:,0, i * self.res: (i + 1) * self.res] = \
-                E0[i * self.res: (self.N + i) * self.res].view(self.N, self.res)
-            Ey = self.enn(hs.view(-1, 1))
-            Ey = Ey.view(self.N, self.modes, self.Ey_size)
-            E_sum = torch.sum(Ey * self.E0_slice, dim= -1, keepdim= False) # shape: [N, modes]
-            eta = (neff * self.n0) / (neff + self.n0) #shape [N, modes]
-            T = 2 * self.C_EPSILON * eta * E_sum * self.dx
-            T = T.view(-1,)
+            E0_slice.append(E0[i * self.res: (self.N + i) * self.res].view(self.N, 1, self.res))
+        E0_slice = torch.cat(E0_slice, dim = -1)
+        Ey = self.enn(hs.view(-1, 1))
+        Ey = Ey.view(self.N, self.modes, self.Ey_size)
+        E_sum = torch.sum(Ey * E0_slice, dim= -1, keepdim= False) # shape: [N, modes]
+        eta = (neff * self.n0) / (neff + self.n0) #shape [N, modes]
+        T = 2 * self.C_EPSILON * eta * E_sum * self.dx
+        T = T.view(-1,)
         return Ey, T
     def reset(self, path):
         model_state = torch.load(path + "fitting_E_state_dict")
@@ -252,7 +254,7 @@ class SCMT_Model(nn.Module):
         total_size = (N) * GP.res
         self.metalayer1 = Metalayer(GP, COUPLING, N, inverse)
         if inverse:
-            self.freelayer1 = freespace_layer(self.prop, GP.lam/self.GP.n_sub, total_size, GP.dx)
+            self.freelayer1 = freespace_layer(self.prop, GP.lam/GP.n_sub, total_size, GP.dx)
         else:
             self.freelayer1 = freespace_layer(self.prop, GP.lam, total_size, GP.dx)
     def forward(self, E0):
@@ -286,9 +288,9 @@ class SCMT_Model_2_layer(nn.Module):
             Ei = SCMT_model(Ei)
         return Ei
     
-    def reset(self):
+    def reset(self, path):
         for i in range(len(self.prop_dis)):
-            self.PBA_models[i].reset()
+            self.SCMT_models[i].reset(path)
 
 class freespace_layer(nn.Module):
     def __init__(self, prop, lam, total_size, dx):

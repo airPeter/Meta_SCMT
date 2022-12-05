@@ -164,16 +164,17 @@ class gen_U0(nn.Module):
         pad2 = (2 * self.Knn + 1) * self.out_res - pad1
         E0 = torch.nn.functional.pad(E0, pad = (pad1, pad2, pad1, pad2), mode='constant', value=0.0)
         neff = self.neffnn(hs.view(-1, 1))
+        #because we use in-place operator here, the gradient with respect to E0 is not supported. The right way to do it is showed in SCMT_model_1D.py gen_U.
         for i in range(2 * (self.Knn + 1)):
             for j in range(2 * (self.Knn + 1)):
                 self.E0_slice[:,0, i * self.out_res: (i + 1) * self.out_res, j * self.out_res: (j + 1) * self.out_res] = \
                     (E0[i * self.out_res: (self.N + i) * self.out_res, j * self.out_res: (self.N + j) * self.out_res]).reshape(self.N**2, self.out_res, self.out_res)
-            Ey = self.enn(hs.view(-1, 1))
-            Ey = Ey.view(self.N**2, self.modes, self.Ey_size, self.Ey_size)
-            E_sum = torch.sum(Ey * self.E0_slice, dim= (-2, -1), keepdim= False) # shape: [N**2, modes]
-            eta = (neff * self.n0) / (neff + self.n0) #shape [N**2, modes]
-            T = 2 * self.C_EPSILON * eta * E_sum * self.dx**2
-            T = T.view(-1,)
+        Ey = self.enn(hs.view(-1, 1))
+        Ey = Ey.view(self.N**2, self.modes, self.Ey_size, self.Ey_size)
+        E_sum = torch.sum(Ey * self.E0_slice, dim= (-2, -1), keepdim= False) # shape: [N**2, modes]
+        eta = (neff * self.n0) / (neff + self.n0) #shape [N**2, modes]
+        T = 2 * self.C_EPSILON * eta * E_sum * self.dx**2
+        T = T.view(-1,)
         return Ey, T
     def reset(self, path):
         model_state = torch.load(path + "fitting_E_state_dict_outres_" + str(self.out_res), map_location=torch.device('cpu'))

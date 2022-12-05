@@ -1,7 +1,7 @@
 from turtle import up
 import numpy as np
 import matplotlib.pyplot as plt
-from .SCMT_model_1D import Metalayer, SCMT_Model
+from .SCMT_model_1D import Metalayer, SCMT_Model, SCMT_Model_2_layer
 import torch
 from torch import optim
 import os
@@ -40,10 +40,17 @@ class SCMT_1D():
         # self.APPROX = APPROX
         self.COUPLING = COUPLING
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        if far_field:
-            self.model = SCMT_Model(self.prop_dis, self.GP, COUPLING, N)
+        if type(self.prop_dis) == list:
+            self.model = SCMT_Model_2_layer(
+                self.prop_dis, self.GP, COUPLING, N)     
+            self.focal_length = self.prop_dis[-1]
         else:
-            self.model = Metalayer(self.GP, COUPLING, N)
+            if far_field:
+                self.model = SCMT_Model(self.prop_dis, self.GP, COUPLING, N)
+                self.focal_length = self.prop_dis
+            else:
+                self.model = Metalayer(self.GP, COUPLING, N)
+                
         self.init_paras(self.model, self.GP.path, init_hs)
         self.model = self.model.to(self.device)
         return None
@@ -99,7 +106,7 @@ class SCMT_1D():
         self.model.train()
 
         radius = self.N * self.GP.period/2
-        NA = radius / np.sqrt(radius**2 + self.prop_dis**2)
+        NA = radius / np.sqrt(radius**2 + self.focal_length**2)
         target_sigma = self.GP.lam / (2 * NA) / self.GP.dx
         print("the numerical aperture: ", NA,
               "target spot size (number of points):", target_sigma)
@@ -114,7 +121,7 @@ class SCMT_1D():
                 for _ in range(substeps):
                     rand_theta = np.random.uniform(theta[0], theta[1])
                     center = int(self.total_size//2 +
-                                 self.prop_dis * np.tan(rand_theta)/self.GP.dx)
+                                 self.focal_length * np.tan(rand_theta)/self.GP.dx)
                     X = np.arange(self.total_size) * self.GP.dx
                     E0 = np.exp(1j * self.GP.k * np.sin(rand_theta)
                                 * X)/np.sqrt(self.total_size)
@@ -127,11 +134,24 @@ class SCMT_1D():
                     sub_losses.append(loss.cpu().detach().item())
                     self.model.zero_grad()
                     loss.backward()
-                    with torch.no_grad():
-                        hs_grads.append(self.model.metalayer1.h_paras.grad)
-                idx = np.argmax(np.array(sub_losses))
-                grad = hs_grads[idx]
-                self.model.metalayer1.h_paras.grad.copy_(grad)
+                    if type(self.prop_dis) == list:
+                        with torch.no_grad():
+                            tmp_grads = []
+                            for idx in range(len(self.prop_dis)):
+                                tmp_grads.append(self.model.SCMT_models[idx].metalayer1.h_paras.grad)
+                            hs_grads.append(tmp_grads)
+                    else:
+                        with torch.no_grad():
+                            hs_grads.append(self.model.metalayer1.h_paras.grad)
+                max_idx = np.argmax(np.array(sub_losses))
+                if type(self.prop_dis) == list:
+                    for idx in range(len(self.prop_dis)):
+                        grad = hs_grads[max_idx][idx]
+                        if grad is not None:
+                            self.model.SCMT_models[idx].metalayer1.h_paras.grad.copy_(grad)
+                else:
+                    grad = hs_grads[max_idx]
+                    self.model.metalayer1.h_paras.grad.copy_(grad)
                 optimizer.step()
                 # with torch.no_grad():
                 #grad = hs_grads[idx]
@@ -140,7 +160,7 @@ class SCMT_1D():
 
             else:
                 rand_theta = np.random.uniform(theta[0], theta[1])
-                center = int(self.total_size//2 + self.prop_dis *
+                center = int(self.total_size//2 + self.focal_length *
                              np.tan(rand_theta)/self.GP.dx)
                 X = np.arange(self.total_size) * self.GP.dx
                 E0 = np.exp(1j * self.GP.k * np.sin(rand_theta) * X)
@@ -165,10 +185,17 @@ class SCMT_1D():
                 # ...log the running loss
                 writer.add_scalar('training loss',
                                   scalar_value=loss.item(), global_step=step)
-                writer.add_figure('hs',
-                                  plot_hs(
-                                      self.model.metalayer1.hs.cpu().detach().numpy()),
-                                  global_step=step)
+                if type(self.prop_dis) == list:
+                    for idx in range(len(self.prop_dis)):
+                        writer.add_figure('hs_layer_' + str(idx),
+                                        plot_hs(
+                                            self.model.SCMT_models[idx].metalayer1.hs.cpu().detach().numpy()),
+                                        global_step=step)   
+                else:   
+                    writer.add_figure('hs',
+                                    plot_hs(
+                                        self.model.metalayer1.hs.cpu().detach().numpy()),
+                                    global_step=step)
                 writer.add_figure('If',
                                   plot_If(If, target_If),
                                   global_step=step)
@@ -180,11 +207,16 @@ class SCMT_1D():
         else:
             print("final lr:", my_lr_scheduler.get_last_lr())
         out_pos = (np.arange(self.N) - (self.N - 1)/2) * self.GP.period
-        out_hs = self.model.metalayer1.hs.cpu().detach().numpy()
-        # out_hs = out_hs//self.GP.dh * self.GP.dh
-        out_data = np.c_[
-            out_pos.reshape(-1, 1), np.round(out_hs.reshape(-1, 1), 3)]
-        np.savetxt(out_path + 'waveguide_widths.csv', out_data, delimiter=",")
+        if type(self.prop_dis) == list:
+            for idx in range(len(self.prop_dis)):
+                out_hs = self.model.SCMT_models[idx].metalayer1.hs.cpu().detach().numpy()
+                out_data = np.c_[out_pos.reshape(-1, 1), out_hs.reshape(-1, 1)]
+                np.savetxt(out_path + f'waveguide_widths_{idx}.csv', out_data, delimiter=",") 
+        else:   
+            out_hs = self.model.metalayer1.hs.cpu().detach().numpy()
+            out_data = np.c_[
+                out_pos.reshape(-1, 1), np.round(out_hs.reshape(-1, 1), 3)]
+            np.savetxt(out_path + 'waveguide_widths.csv', out_data, delimiter=",")
         print('parameters saved in.', out_path)
         return None
 
@@ -218,11 +250,12 @@ class SCMT_1D():
                 self.total_size, self.GP.dx, deflecting_angle, self.GP.lam, delta_degree=delta_degree)
         else:
             radius = self.N * self.GP.period/2
-            NA = radius / np.sqrt(radius**2 + self.prop_dis**2)
+            NA = radius / np.sqrt(radius**2 + self.focal_length**2)
             target_sigma = self.GP.lam / (2 * NA) / self.GP.dx
             print("the numerical aperture: ", NA,
                   "target spot size (number of points):", target_sigma)
             center = int(self.total_size//2)
+        writer.add_graph(self.model, (E0))
         for step in tqdm(range(steps + 1)):
             # Compute prediction error
             Ef = self.model(E0)
@@ -247,10 +280,17 @@ class SCMT_1D():
                 # ...log the running loss
                 writer.add_scalar('training loss',
                                   scalar_value=loss.item(), global_step=step)
-                writer.add_figure('hs',
-                                  plot_hs(
-                                      self.model.metalayer1.hs.cpu().detach().numpy()),
-                                  global_step=step)
+                if type(self.prop_dis) == list:
+                    for idx in range(len(self.prop_dis)):
+                        writer.add_figure('hs_layer_' + str(idx),
+                                        plot_hs(
+                                            self.model.SCMT_models[idx].metalayer1.hs.cpu().detach().numpy()),
+                                        global_step=step)   
+                else:   
+                    writer.add_figure('hs',
+                                    plot_hs(
+                                        self.model.metalayer1.hs.cpu().detach().numpy()),
+                                    global_step=step)
                 writer.add_figure('If',
                                   plot_If(If),
                                   global_step=step)
@@ -264,19 +304,22 @@ class SCMT_1D():
                 # print(f"loss: {loss:>7f}  [{step:>5d}/{train_steps:>5d}]")
         print("final lr:", my_lr_scheduler.get_last_lr())
         out_pos = (np.arange(self.N) - (self.N - 1)/2) * self.GP.period
-        out_hs = self.model.metalayer1.hs.cpu().detach().numpy()
-        # out_hs = out_hs//self.GP.dh * self.GP.dh
-        out_data = np.c_[out_pos.reshape(-1, 1), out_hs.reshape(-1, 1)]
-        np.savetxt(out_path + 'waveguide_widths.csv', out_data, delimiter=",")
+        if type(self.prop_dis) == list:
+            for idx in range(len(self.prop_dis)):
+                out_hs = self.model.SCMT_models[idx].metalayer1.hs.cpu().detach().numpy()
+                out_data = np.c_[out_pos.reshape(-1, 1), out_hs.reshape(-1, 1)]
+                np.savetxt(out_path + f'waveguide_widths_{idx}.csv', out_data, delimiter=",") 
+        else:   
+            out_hs = self.model.metalayer1.hs.cpu().detach().numpy()
+            out_data = np.c_[
+                out_pos.reshape(-1, 1), np.round(out_hs.reshape(-1, 1), 3)]
+            np.savetxt(out_path + 'waveguide_widths.csv', out_data, delimiter=",")
         print('parameters saved in.', out_path)
         return None
 
-    def init_paras(self, model, cache_path, init_hs=None):
-        model.reset(cache_path)
-        if init_hs is None:
-            print('initialized by default h_paras.')
-            return None
-        else:
+    def init_paras(self, model, init_path, init_hs=None):
+        
+        def hs_preprocess(init_hs):
             #h_paras = np.genfromtxt(path, delimiter=',')
             if init_hs.max() > self.GP.h_max:
                 warnings.warn("bad initial widths for waveguides.")
@@ -290,16 +333,29 @@ class SCMT_1D():
             # becuase in our model we use Sigmoid  function, here, the hs paras is generated by inverse function.
             init_hs_para = np.log(hs_paras / (1 - hs_paras))
             init_hs_para = torch.tensor(init_hs_para, dtype=torch.float)
-            state_dict = model.state_dict()
+            return init_hs_para
+        
+        model.reset(init_path)
+        if init_hs is None:
+            print('initialized by default h_paras.')
+            return None
+        state_dict = model.state_dict()
+        if type(init_hs) == list:
+            for idx, tmp_init_hs in enumerate(init_hs):
+                if tmp_init_hs is None:
+                    continue
+                state_dict['SCMT_models.' + str(idx) + '.metalayer1.h_paras'] = hs_preprocess(tmp_init_hs)
+        else:
+            init_hs_para = hs_preprocess(init_hs)
             if self.far_field:
                 state_dict['metalayer1.h_paras'] = init_hs_para
             else:
                 state_dict['h_paras'] = init_hs_para
-            model.load_state_dict(state_dict)
-            # with torch.no_grad():
-            #    model.metalayer1.h_paras.data = h_paras_initial
-            print('initialized by loaded h_paras.')
-            return None
+        model.load_state_dict(state_dict)
+        # with torch.no_grad():
+        #    model.metalayer1.h_paras.data = h_paras_initial
+        print('initialized by loaded h_paras.')
+            
 
     def vis_field(self, E):
         px = (np.arange(self.total_size) - self.total_size//2) * self.GP.dx
