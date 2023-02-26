@@ -234,7 +234,7 @@ class Fullwave_1D_2layer():
         fcen = td.constants.C_0 / self.GP.lam
         fwidth = fcen/10
         # Total time to run in seconds
-        run_time = max(100/fwidth, 5 * N * self.GP.period / td.constants.C_0)
+        run_time = max(200/fwidth, 5 * N * self.GP.period / td.constants.C_0)
         print("total running time:", run_time)
 
         # Lossless dielectric

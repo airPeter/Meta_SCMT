@@ -20,9 +20,9 @@ class Fullwave_1D():
         if backend == 'meep':
             self.meep_init_sim(prop_dis, N, hs, res, theta, empty)
         elif backend == 'tidy3d':
-            if theta != 0:
-                warnings.warn(
-                    "should use meep for theta!=0. For the tidy3d, we use gaussian beam with a super large waist, which is very dirty.")
+            # if theta != 0:
+            #     warnings.warn(
+            #         "should use meep for theta!=0. For the tidy3d, we use gaussian beam with a super large waist, which is very dirty.")
             self.tidy3d_init_sim(prop_dis, N, hs, res, theta, empty)
 
     def meep_init_sim(self, prop_dis: float, N: int, hs: np.ndarray, res: Optional[int] = None, theta: float = 0, empty: bool = False) -> None:
@@ -288,6 +288,7 @@ class Fullwave_1D():
             size=(td.inf, td.inf, 0),
             center=(0,0,-z_size/2 + 0.5),
             direction='+',
+            angle_theta = theta,
             pol_angle = np.pi/2, #Ey polarization.
         )
         print(psource)
