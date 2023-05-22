@@ -5,6 +5,7 @@ Meta_SCMT is a software to inverse design large-area dielectric metasurface. The
 * I am actively developing the software. So do expect some bugs. Please try to read the code if you encounter any bugs, or you can also reach out to me by email.
 * when we say 1D waveguide, it only has a finite size along 1 direction. The 2D waveguide has a finite size in 2 directions.
 * 1D waveguide array will become a 2D metasurface which is like a grating. 2D waveguide array will become a 3D metasurface.
+* read the paper before running the code. (paper is in the citing section)
 
 
 ## Install
@@ -56,4 +57,12 @@ See paper: Pestourie, Raphaël, Carlos Pérez-Arancibia, Zin Lin, Wonseok Shin, 
 ## Getting start
 To get started, please go through the notebooks of the 1D or 2D waveguide examples (corresponding to 2D or 3D metasurface) in the examples/ directory. 
 ## Citing
-
+read the paper before run the code.
+@misc{wu2023inverse,
+      title={Inverse design of dielectric metasurface by spatial coupled mode theory}, 
+      author={Zhicheng Wu and Xiaoyan Huang and Nanfang Yu and Zongfu Yu},
+      year={2023},
+      eprint={2304.00603},
+      archivePrefix={arXiv},
+      primaryClass={physics.optics}
+}
