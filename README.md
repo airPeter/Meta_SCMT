@@ -20,7 +20,7 @@ no installation is required. Just copy the Meta_SCMT directory to where you want
 * cv2
 * seaborn
 * sklearn
-* tidy3d (https://www.flexcompute.com/tidy3d/)
+* tidy3d = v1.7.1 (https://www.flexcompute.com/tidy3d/)
 * grcwa (https://github.com/weiliangjinca/grcwa)
 
 ## Metasurface inverse design
